@@ -14,7 +14,6 @@ class Estimator:
     tensorifier = Tensorifier(['rainfall', 'mean_temperature', 'population'])
     loader = DataLoader
 
-
     def train(self, data: DataSet):
         array_dataset = self.tensorifier.convert(data)
         n_locations = array_dataset.shape[1]
@@ -26,12 +25,14 @@ class Estimator:
         loader = self.loader(X, y, 12, 3, 5)
         module = RNNWithLocationEmbedding(n_locations, array_dataset.shape[-1], 4)
         locations = np.array([[np.arange(n_locations) for _ in range(12)] for _ in range(5)])
+        locations = torch.from_numpy(locations)
         for X, y in loader:
             assert X.shape[:2] == (5, 12)
             assert y.shape[:2] == (5, 3)
-            log_rate = module(torch.from_numpy(X), torch.from_numpy(locations))
+            log_rate = module(torch.from_numpy(X), locations)
             assert log_rate.shape == (5, 3, n_locations, 1)
-
+            loss = nn.PoissonNLLLoss(log_input=True)(log_rate.reshape(5, 3, n_locations), torch.from_numpy(y))
+            print(loss)
 
 def test():
     dataset = DataSet.from_csv('~/Data/ch_data/rwanda_harmonized.csv', FullData)
