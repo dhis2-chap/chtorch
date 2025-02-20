@@ -14,6 +14,8 @@ class TSDataSet(torch.utils.data.Dataset):
         self.total_length = context_length + prediction_length
         self.context_length = context_length
         self.prediction_length = prediction_length
+        n_locations = X.shape[1]
+        self.locations = np.array([np.arange(n_locations) for _ in range(context_length)])
 
     def __len__(self):
         return len(self.X) - self.total_length + 1
@@ -21,7 +23,7 @@ class TSDataSet(torch.utils.data.Dataset):
     def __getitem__(self, i):
         x = self.X[i:i + self.context_length]
         y = self.y[i + self.context_length:i + self.total_length]
-        return x, y
+        return x, self.locations, y
 
 
 class DataLoader:
