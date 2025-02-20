@@ -3,8 +3,26 @@
 from array import ArrayType
 
 import numpy as np
-from pydantic import BaseModel
+import torch
 from pytorch_forecasting import TimeSeriesDataSet
+
+
+class TSDataSet(torch.utils.data.Dataset):
+    def __init__(self, X, y, context_length, prediction_length):
+        self.X = X
+        self.y = y
+        self.total_length = context_length + prediction_length
+        self.context_length = context_length
+        self.prediction_length = prediction_length
+
+    def __len__(self):
+        return len(self.X) - self.total_length + 1
+
+    def __getitem__(self, i):
+        x = self.X[i:i + self.context_length]
+        y = self.y[i + self.context_length:i + self.total_length]
+        return x, y
+
 
 class DataLoader:
     def __init__(self, X, y, context_length, prediction_length, batch_size):
@@ -17,10 +35,11 @@ class DataLoader:
 
     def __iter__(self):
         for i in range(len(self.X) - self.total_length + 1):
-            x = np.array([self.X[j:j + self.context_length] for j in range(i, i+self.batch_size)])
+            x = np.array([self.X[j:j + self.context_length] for j in range(i, i + self.batch_size)])
             y = np.array([self.y[j + self.context_length: j + self.context_length + self.prediction_length]
                           for j in range(i, i + self.batch_size)])
             yield x, y
+
 
 if False:
     class Instance(BaseModel):
@@ -44,4 +63,3 @@ if False:
                 max_prediction_length=3,
                 time_varying_unknown_reals=["value"],
             )
-
