@@ -6,7 +6,9 @@ from chap_core.data import DataSet
 from chap_core.datatypes import FullData
 from sklearn.preprocessing import StandardScaler
 from torch import nn, optim
+from torch.distributions import NegativeBinomial
 
+from chtorch import tensorifier
 from chtorch.data_loader import DataLoader, TSDataSet
 from chtorch.module import RNNWithLocationEmbedding
 from chtorch.tensorifier import Tensorifier
@@ -27,11 +29,44 @@ class DeepARLightningModule(L.LightningModule):
         log_rate = self.module(X, locations).squeeze(-1)
         loss = self.loss(log_rate, y)
         self.log("train_loss", loss, prog_bar=True, logger=True)
-        print(loss)
         return loss
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=1e-3)
+
+
+class Predictor:
+    def __init__(self, module, tensorifier, transformer):
+        super().__init__()
+        self.module = module
+        self.tensorifier = tensorifier
+        self.transformer = transformer
+
+    def forecast(self, historic_data: DataSet, future_data: DataSet):
+        historic_tensor = self.tensorifier.convert(historic_data)
+        print(historic_tensor.shape)
+        tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
+        historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
+        ts_dataset = TSDataSet(historic_tensor, None, 12, 3)
+        instance = ts_dataset.last_prediction_instance()
+        return self.module(*instance)
+
+
+class NegativeBinomialLoss(nn.Module):
+    def forward(self, y_pred, y_true):
+        """
+        y_pred: (batch_size, 2)  - First column: mean (μ), Second column: dispersion (θ)
+        y_true: (batch_size, 1)  - Observed counts
+        """
+        K = torch.exp(y_pred[..., 0]).ravel()  # Ensure mean (μ) is positive
+        eta = torch.exp(y_pred[..., 1]).ravel()  # Ensure dispersion (θ) is positive
+
+        # Define Negative Binomial distribution
+        nb_dist = NegativeBinomial(total_count=K, logits=eta)
+
+        # Compute negative log likelihood loss
+        loss = -nb_dist.log_prob(y_true.ravel()).mean()
+        return loss
 
 
 class Estimator:
@@ -40,7 +75,6 @@ class Estimator:
 
     def train(self, data: DataSet):
         array_dataset = self.tensorifier.convert(data)
-
         n_locations = array_dataset.shape[1]
         transormer = StandardScaler()
         transformed_dataset = transormer.fit_transform(array_dataset.reshape(-1, array_dataset.shape[-1]))
@@ -50,8 +84,10 @@ class Estimator:
         assert len(X) == len(y)
         loader = torch.utils.data.DataLoader(ts_dataset, batch_size=5, shuffle=True, drop_last=True)
         module = RNNWithLocationEmbedding(n_locations, array_dataset.shape[-1], 4)
-        lightning_module = DeepARLightningModule(module, nn.PoissonNLLLoss(log_input=True))
-        trainer = L.Trainer(max_epochs=1000,
+        lightning_module = DeepARLightningModule(module,
+                                                 NegativeBinomialLoss())
+                                                 #nn.PoissonNLLLoss(log_input=True))
+        trainer = L.Trainer(max_epochs=10,
                             accelerator="gpu" if torch.cuda.is_available() else "cpu")
 
         trainer.fit(lightning_module, loader)
@@ -66,10 +102,11 @@ class Estimator:
         #     #assert log_rate.shape == (5, 3, n_locations, 1)
         #     #loss = nn.PoissonNLLLoss(log_input=True)(log_rate.reshape(5, 3, n_locations), y)
 
-        return module
+        return Predictor(module, self.tensorifier, transormer)
 
 
 def test():
     dataset = DataSet.from_csv('~/Data/ch_data/rwanda_harmonized.csv', FullData)
     estimator = Estimator()
     predictor = estimator.train(dataset)
+    predictor.forecast(dataset, dataset)

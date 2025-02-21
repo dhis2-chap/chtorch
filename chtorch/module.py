@@ -17,7 +17,9 @@ class RNNWithLocationEmbedding(nn.Module):
         else:
             raise ValueError("Unsupported RNN type. Use 'GRU' or 'LSTM'.")
         self.decoder = nn.GRU(1, hidden_dim, batch_first=True)
-        self.ouput_layer = nn.Linear(hidden_dim, 1)
+
+        self.output_dim = 2
+        self.ouput_layer = nn.Linear(hidden_dim, self.output_dim)
 
     def forward(self, x, locations):
         """
@@ -40,7 +42,7 @@ class RNNWithLocationEmbedding(nn.Module):
         dummy_input = torch.zeros(batch_size*num_locations, 3, 1)
         decoded, _ = self.decoder(dummy_input, end_state)
         decoded = self.ouput_layer(decoded)
-        return decoded.reshape(batch_size, num_locations, 3, 1).swapaxes(1, 2)
+        return decoded.reshape(batch_size, num_locations, 3, self.output_dim).swapaxes(1, 2)
         #return rnn_out.reshape(batch_size, num_locations, time_steps, self.hidden_dim).swapaxes(1, 2)
 
 if __name__ == '__main__':

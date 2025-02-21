@@ -25,6 +25,8 @@ class TSDataSet(torch.utils.data.Dataset):
         y = self.y[i + self.context_length:i + self.total_length]
         return x, self.locations, y
 
+    def last_prediction_instance(self):
+        return torch.from_numpy(self.X[None, -self.context_length:, ...]), torch.from_numpy(self.locations[None, ...])
 
 class DataLoader:
     def __init__(self, X, y, context_length, prediction_length, batch_size):
