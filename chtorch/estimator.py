@@ -2,8 +2,9 @@ from typing import Any
 
 import numpy as np
 import torch
+from chap_core.assessment.dataset_splitting import train_test_generator
 from chap_core.data import DataSet
-from chap_core.datatypes import FullData
+from chap_core.datatypes import FullData, Samples
 from sklearn.preprocessing import StandardScaler
 from torch import nn, optim
 from torch.distributions import NegativeBinomial
@@ -49,7 +50,21 @@ class Predictor:
         historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
         ts_dataset = TSDataSet(historic_tensor, None, 12, 3)
         instance = ts_dataset.last_prediction_instance()
-        return self.module(*instance)
+        with torch.no_grad():
+            eta = self.module(*instance)
+        samples = torch.distributions.NegativeBinomial(
+            total_count=torch.exp(eta[..., 0]),
+            logits=eta[..., 1]).sample((100,))
+        output = {}
+        period_range = future_data.period_range
+        print(period_range)
+
+        for i, location in enumerate(historic_data.keys()):
+            s = samples[..., i].T
+            print(s.shape)
+            output[location] = Samples(period_range, s)
+        return DataSet(output)
+
 
 
 class NegativeBinomialLoss(nn.Module):
@@ -59,7 +74,7 @@ class NegativeBinomialLoss(nn.Module):
         y_true: (batch_size, 1)  - Observed counts
         """
         K = torch.exp(y_pred[..., 0]).ravel()  # Ensure mean (μ) is positive
-        eta = torch.exp(y_pred[..., 1]).ravel()  # Ensure dispersion (θ) is positive
+        eta = y_pred[..., 1].ravel()  # Ensure dispersion (θ) is positive
 
         # Define Negative Binomial distribution
         nb_dist = NegativeBinomial(total_count=K, logits=eta)
@@ -86,7 +101,6 @@ class Estimator:
         module = RNNWithLocationEmbedding(n_locations, array_dataset.shape[-1], 4)
         lightning_module = DeepARLightningModule(module,
                                                  NegativeBinomialLoss())
-                                                 #nn.PoissonNLLLoss(log_input=True))
         trainer = L.Trainer(max_epochs=10,
                             accelerator="gpu" if torch.cuda.is_available() else "cpu")
 
@@ -107,6 +121,9 @@ class Estimator:
 
 def test():
     dataset = DataSet.from_csv('~/Data/ch_data/rwanda_harmonized.csv', FullData)
+    train, test = train_test_generator(dataset, prediction_length=3, n_test_sets=1)
+    historic, future, _ = next(test)
     estimator = Estimator()
-    predictor = estimator.train(dataset)
-    predictor.forecast(dataset, dataset)
+    predictor = estimator.train(train)
+    samples =predictor.forecast(historic, future)
+    print(samples)
