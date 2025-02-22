@@ -6,20 +6,22 @@ class RNNWithLocationEmbedding(nn.Module):
     def __init__(self, num_locations, input_feature_dim, hidden_dim, rnn_type='GRU', prediction_length=3):
         super().__init__()
         self.location_embedding = nn.Embedding(num_locations, 4)  # Embedding layer
-        self.rnn_input_dim = input_feature_dim + 4  # Concatenating 4D embedding with features
+        init_dim = input_feature_dim + 4
         self.hidden_dim = hidden_dim
-
+        self.preprocess = nn.Linear(init_dim, hidden_dim)
         # Define RNN (GRU or LSTM)
         if rnn_type == 'GRU':
-            self.rnn = nn.GRU(self.rnn_input_dim, hidden_dim, batch_first=True)
+            self.rnn = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
         elif rnn_type == 'LSTM':
-            self.rnn = nn.LSTM(self.rnn_input_dim, hidden_dim, batch_first=True)
+            self.rnn = nn.LSTM(hidden_dim, hidden_dim, batch_first=True)
         else:
             raise ValueError("Unsupported RNN type. Use 'GRU' or 'LSTM'.")
-        self.decoder = nn.GRU(1, hidden_dim, batch_first=True)
 
+        self.decoder = nn.GRU(1, hidden_dim, batch_first=True)
         self.output_dim = 2
+        self.output_decoder = nn.Linear(hidden_dim, hidden_dim)
         self.ouput_layer = nn.Linear(hidden_dim, self.output_dim)
+
         self.prediction_length = prediction_length
 
     def forward(self, x, locations):
@@ -37,11 +39,14 @@ class RNNWithLocationEmbedding(nn.Module):
         x_with_loc = x_with_loc.swapaxes(1, 2)  # (batch, location, time, feature_dim + 4
         # Reshape for RNN: merge location into feature dimension
         x_rnn = x_with_loc.reshape(batch_size*num_locations, time_steps, -1)  # (batch, time, location * (feature_dim + 4))
-
+        x_rnn = self.preprocess(x_rnn)
+        x_rnn = nn.ReLU()(x_rnn)
         # Pass through RNN
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
         dummy_input = torch.zeros(batch_size*num_locations, self.prediction_length, 1)
         decoded, _ = self.decoder(dummy_input, end_state)
+        decoded = self.output_decoder(decoded)
+        decoded = nn.ReLU()(decoded)
         decoded = self.ouput_layer(decoded)
         return decoded.reshape(batch_size, num_locations, self.prediction_length, self.output_dim).swapaxes(1, 2)
         #return rnn_out.reshape(batch_size, num_locations, time_steps, self.hidden_dim).swapaxes(1, 2)

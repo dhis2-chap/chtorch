@@ -5,7 +5,8 @@
 import typer
 
 
-def main_function():
+
+def evaluate(dataset_path: str):
     '''
     This function should just be type hinted with common types,
     and it will run as a command line function
@@ -14,11 +15,11 @@ def main_function():
     >>> main_function()
 
     '''
-    return
+
 
 
 def main():
-    typer.run(main_function)
+    typer.run(evaluate)
 
 
 if __name__ == "__main__":
