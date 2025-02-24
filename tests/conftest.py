@@ -1,4 +1,4 @@
-from chap_core.data import ISIMIP_dengue_harmonized
+from chap_core.data.datasets import ISIMIP_dengue_harmonized
 import pytest
 
 

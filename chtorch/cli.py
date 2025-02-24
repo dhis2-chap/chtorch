@@ -1,9 +1,16 @@
 """Console script for chtorch."""
+from pathlib import Path
+
 # todo
 
 
 import typer
+from chap_core.assessment.prediction_evaluator import evaluate_model
+from chap_core.climate_predictor import QuickForecastFetcher
+from chap_core.datatypes import FullData
+from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 
+from chtorch.estimator import Estimator
 
 
 def evaluate(dataset_path: str):
@@ -13,9 +20,15 @@ def evaluate(dataset_path: str):
     Simple function
 
     >>> main_function()
-
     '''
 
+    dataset = DataSet.from_csv(dataset_path, FullData)
+    stem = Path(dataset_path).stem + '.pdf'
+    results = evaluate_model(
+        Estimator(context_length=52, prediction_length=12), dataset, prediction_length=12,
+                                 n_test_sets=20, report_filename=stem,
+                                 weather_provider=QuickForecastFetcher)
+    print(results)
 
 
 def main():
