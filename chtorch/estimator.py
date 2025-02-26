@@ -132,7 +132,7 @@ class Estimator:
             module,
             NegativeBinomialLoss())
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
-                            accelerator="gpu" if torch.cuda.is_available() else "cpu")
+                            accelerator="cpu")  #"gpu" if torch.cuda.is_available() else "cpu")
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         return Predictor(module, self.tensorifier, transformer, self.context_length, self.prediction_length)
