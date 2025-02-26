@@ -16,7 +16,17 @@ CHTorch
 
 
 
-Utility packages for making pytorch models for climate and health
+Utility packages for making pytorch models for climate and health.
+
+
+Installation
+-------------
+
+- Clone repository
+- Install with pip: `pip install .` (NB: For local development, install editable with `pip install -e .`)
+- If doing development installation, also install development requirements with `pip install -r requirements_dev.txt`
+
+
 
 
 * Free software: MIT license
