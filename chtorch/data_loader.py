@@ -28,6 +28,7 @@ class TSDataSet(torch.utils.data.Dataset):
     def last_prediction_instance(self):
         return torch.from_numpy(self.X[None, -self.context_length:, ...]), torch.from_numpy(self.locations[None, ...])
 
+
 class DataLoader:
     def __init__(self, X, y, context_length, prediction_length, batch_size):
         self.X = X
@@ -43,27 +44,3 @@ class DataLoader:
             y = np.array([self.y[j + self.context_length: j + self.context_length + self.prediction_length]
                           for j in range(i, i + self.batch_size)])
             yield x, y
-
-
-if False:
-    class Instance(BaseModel):
-        historic_data: ArrayType
-        target_values: ArrayType
-        future_predictors: ArrayType | None = None
-
-
-    class Adaptor:
-        def __init__(self, ch_dataset):
-            self._ch_dataset = ch_dataset
-            df = ch_dataset.to_pandas()
-            dataset = TimeSeriesDataSet(
-                df,
-                group_ids=["location"],
-                target="disease_cases",
-                time_idx="time_period",
-                min_encoder_length=0,
-                max_encoder_length=12,
-                min_prediction_length=3,
-                max_prediction_length=3,
-                time_varying_unknown_reals=["value"],
-            )

@@ -2,13 +2,10 @@ from typing import Any
 
 import numpy as np
 import torch
-from chap_core.assessment.prediction_evaluator import evaluate_model
-from chap_core.climate_predictor import QuickForecastFetcher
 from chap_core.data import DataSet
 from chap_core.datatypes import FullData, Samples
 from sklearn.preprocessing import StandardScaler
 from torch import nn, optim
-from torch.distributions import NegativeBinomial
 
 from chtorch.data_loader import DataLoader, TSDataSet
 from chtorch.module import RNNWithLocationEmbedding
@@ -44,14 +41,15 @@ class DeepARLightningModule(L.LightningModule):
         self.log("train_loss", loss, prog_bar=True, logger=True)
         return loss
 
+    def validation_step(self, batch, batch_idx):
+        X, locations, y = batch
+        log_rate = self.module(X, locations).squeeze(-1)
+        loss = self.loss(log_rate, y)
+        self.log("validation_loss", loss, prog_bar=True, logger=True)
+        return loss
+
     def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-5)
-
-
-def _get_dist(eta):
-    return torch.distributions.NegativeBinomial(
-        total_count=torch.exp(eta[..., 0]),
-        logits=eta[..., 1])
+        return optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-6)
 
 
 def get_dist(eta):
@@ -105,54 +103,41 @@ class Estimator:
     tensorifier = Tensorifier(['rainfall', 'mean_temperature'])
     loader = DataLoader
 
-    def __init__(self, context_length=12, prediction_length=3, debug=False):
+    def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False):
         self.context_length = context_length
         self.prediction_length = prediction_length
         self.debug = debug
+        self.validate = validate
+        self.max_epochs = 2500//context_length
 
     def train(self, data: DataSet):
         array_dataset = self.tensorifier.convert(data)
         n_locations = array_dataset.shape[1]
-        transormer = StandardScaler()
-        transformed_dataset = transormer.fit_transform(array_dataset.reshape(-1, array_dataset.shape[-1]))
+        transformer = StandardScaler()
+        transformed_dataset = transformer.fit_transform(array_dataset.reshape(-1, array_dataset.shape[-1]))
         X = transformed_dataset.reshape(array_dataset.shape).astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
-        ts_dataset = TSDataSet(X, y, self.context_length, self.prediction_length)
+        train_dataset = TSDataSet(X, y, self.context_length, self.prediction_length)
+        if self.validate:
+            train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [0.8, 0.2])
+
+
         assert len(X) == len(y)
-        loader = torch.utils.data.DataLoader(ts_dataset, batch_size=5, shuffle=True, drop_last=True, num_workers=7)
+        loader = torch.utils.data.DataLoader(train_dataset, batch_size=5, shuffle=True, drop_last=True, num_workers=3)
+        if self.validate:
+            val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=5, shuffle=False, drop_last=True, num_workers=3)
         module = RNNWithLocationEmbedding(n_locations, array_dataset.shape[-1], 4,
                                           prediction_length=self.prediction_length)
         lightning_module = DeepARLightningModule(
             module,
             NegativeBinomialLoss())
-        trainer = L.Trainer(max_epochs=50 if not self.debug else 3,
+        trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
                             accelerator="gpu" if torch.cuda.is_available() else "cpu")
 
-        trainer.fit(lightning_module, loader)
-        return Predictor(module, self.tensorifier, transormer, self.context_length, self.prediction_length)
-
+        trainer.fit(lightning_module, loader, val_loader if self.validate else None)
+        return Predictor(module, self.tensorifier, transformer, self.context_length, self.prediction_length)
 
 def test():
-    if True:
-        dataset = DataSet.from_csv('/home/knut/Data/ch_data/weekly_laos_data.csv', FullData)
-        results = evaluate_model(Estimator(context_length=52, prediction_length=12), dataset, prediction_length=12,
-                                 n_test_sets=10, report_filename='laos_debug.pdf',
-                                 weather_provider=QuickForecastFetcher)
-    else:
-        dataset = DataSet.from_csv('/home/knut/Data/ch_data/rwanda_harmonized.csv', FullData)  # 5534153
-        results = evaluate_model(Estimator(context_length=12, prediction_length=6), dataset, prediction_length=6,
-                                 n_test_sets=10, report_filename='rwanda_debug.pdf',
-                                 weather_provider=QuickForecastFetcher)
-
-    # dataset = DataSet.from_csv('~/Data/ch_data/rwanda_harmonized.csv', FullData)
-
-    print(results)
-    #
-    # evaluate_model
-    #
-    # train, test = train_test_generator(dataset, prediction_length=3, n_test_sets=1)
-    # historic, future, _ = next(test)
-    # estimator = Estimator()
-    # predictor = estimator.train(train)
-    # samples = predictor.forecast(historic, future)
-    # print(samples)
+    dataset = DataSet.from_csv('/home/knut/Data/ch_data/rwanda_harmonized.csv', FullData)
+    estimator = Estimator(context_length=12, prediction_length=3, validate=True)
+    predictor = estimator.train(dataset)

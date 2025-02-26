@@ -1,0 +1,9 @@
+pytest~=8.3.4
+chtorch~=0.0.1
+typer~=0.15.1
+torch~=2.5.1
+numpy~=1.26.4
+lightning~=2.5.0.post0
+scikit-learn~=1.6.1
+scipy~=1.15.1
+setuptools~=75.2.0
