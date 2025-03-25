@@ -41,10 +41,12 @@ def test_last_prediction(ts_dataset):
     assert location.shape == (1, 12, 19)
     assert population.shape == (1, 3, 19)
 
+
 def test_getitem_flat(flat_dataset):
     X, location, y, population = flat_dataset[0]
     assert X.shape == (12, 7)
     assert y.shape == (3,)
+    assert location.shape == (12,)
     assert population.shape == (3,)
 
 
@@ -52,6 +54,6 @@ def test_last_prediction_flat(flat_dataset):
     X, location, population = flat_dataset.last_prediction_instance()
     n_location = 19
     assert X.shape == (n_location, 12, 7)
-    assert location.shape == (n_location,)
+    assert location.shape == (n_location, 12)
     assert population.shape == (n_location, 3)
     print(location, population)

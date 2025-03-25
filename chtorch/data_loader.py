@@ -48,13 +48,14 @@ class FlatTSDataSet(TSDataSet):
         y = self.y[i + self.context_length:i + self.total_length, j]
         population = self.population[i + self.context_length:i + self.total_length, j]
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
-        return x, j, y, population
+        return x, np.full(self.context_length, j), y, population
 
     def last_prediction_instance(self):
         last_population = self.population[-1:].T
         repeated_population = np.repeat(last_population, self.prediction_length, axis=1)
+        location = np.array([self.locations[0] for t in range(self.context_length)]).T
         return (torch.from_numpy(self.X[-self.context_length:, ...].swapaxes(0, 1)),
-                torch.from_numpy(self.locations[0]),
+                torch.from_numpy(location),
                 torch.from_numpy(repeated_population))
 
 
