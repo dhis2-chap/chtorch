@@ -117,6 +117,7 @@ class NegativeBinomialLoss(nn.Module):
 class Estimator:
     features = ['rainfall', 'mean_temperature']
     count_transform = Logp1RateTransform()
+    # count_transform = Log1pTransform()
     is_flat = True
     def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False, weight_decay=1e-6, n_hidden=4, max_epochs=None):
         self.context_length = context_length
@@ -145,9 +146,10 @@ class Estimator:
 
         assert len(X) == len(y)
 
-        loader = torch.utils.data.DataLoader(train_dataset, batch_size=5, shuffle=True, drop_last=True, num_workers=3)
+        batch_size = 64 if self.is_flat else 8
+        loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=3)
         if self.validate:
-            val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=5, shuffle=False, drop_last=True,
+            val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=True,
                                                      num_workers=3)
 
         module = Module(n_locations, array_dataset.shape[-1], 4,
