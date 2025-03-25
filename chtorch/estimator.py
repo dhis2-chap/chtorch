@@ -116,7 +116,7 @@ class NegativeBinomialLoss(nn.Module):
 
 class Estimator:
     features = ['rainfall', 'mean_temperature']
-    #count_transform = Logp1RateTransform()
+    # count_transform = Logp1RateTransform()
     count_transform = Log1pTransform()
     is_flat = True
 
