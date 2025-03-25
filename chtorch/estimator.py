@@ -37,8 +37,7 @@ class DeepARLightningModule(L.LightningModule):
         return self.module(*args, **kwargs)
 
     def training_step(self, batch, batch_idx):
-        X, locations, y = batch
-        population = 0
+        X, locations, y, population = batch
         log_rate = self.module(X, locations).squeeze(-1)
         loss = self.loss(log_rate, y, population)
         self.log("train_loss", loss, prog_bar=True, logger=True)
@@ -76,10 +75,10 @@ class Predictor:
         tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
         historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
         ts_dataset = TSDataSet(historic_tensor, None, population, self.context_length, self.prediction_length)
-        instance = ts_dataset.last_prediction_instance()
+        *instance, population = ts_dataset.last_prediction_instance()
         with torch.no_grad():
             eta = self.module(*instance)
-        samples = get_dist(eta, 0, self.count_transform).sample((100,))
+        samples = get_dist(eta, population, self.count_transform).sample((100,))
         output = {}
         period_range = future_data.period_range
 

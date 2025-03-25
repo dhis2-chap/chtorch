@@ -24,10 +24,12 @@ class TSDataSet(torch.utils.data.Dataset):
     def __getitem__(self, i) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         x = self.X[i:i + self.context_length]
         y = self.y[i + self.context_length:i + self.total_length]
-        return x, self.locations, y
+        population = self.population[i + self.context_length:i + self.total_length]
+        return x, self.locations, y, population
 
     def last_prediction_instance(self):
-        return torch.from_numpy(self.X[None, -self.context_length:, ...]), torch.from_numpy(self.locations[None, ...])
+        last_population = self.population[-1]
+        return torch.from_numpy(self.X[None, -self.context_length:, ...]), torch.from_numpy(self.locations[None, ...]), last_population
 
 #
 # class DataLoader:
