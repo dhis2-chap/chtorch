@@ -41,6 +41,7 @@ class RNNWithLocationEmbedding(nn.Module):
         x_rnn = x_with_loc.reshape(batch_size*num_locations, time_steps, -1)  # (batch, time, location * (feature_dim + 4))
         x_rnn = self.preprocess(x_rnn)
         x_rnn = nn.ReLU()(x_rnn)
+
         # Pass through RNN
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
         dummy_input = torch.zeros(batch_size*num_locations, self.prediction_length, 1)

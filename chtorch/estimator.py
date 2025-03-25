@@ -7,7 +7,7 @@ from chap_core.datatypes import FullData, Samples
 from sklearn.preprocessing import StandardScaler
 from torch import nn, optim
 
-from chtorch.data_loader import DataLoader, TSDataSet
+from chtorch.data_loader import TSDataSet
 from chtorch.module import RNNWithLocationEmbedding
 from chtorch.tensorifier import Tensorifier
 import lightning as L
@@ -26,10 +26,11 @@ logits = -log(mean/variance)
 
 
 class DeepARLightningModule(L.LightningModule):
-    def __init__(self, module, loss):
+    def __init__(self, module, loss, weight_decay=1e-6):
         super().__init__()
         self.module = module
         self.loss = loss
+        self.weight_decay = weight_decay
 
     def forward(self, *args: Any, **kwargs: Any) -> Any:
         return self.module(*args, **kwargs)
@@ -49,7 +50,7 @@ class DeepARLightningModule(L.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-6)
+        return optim.Adam(self.parameters(), lr=1e-3, weight_decay=self.weight_decay)
 
 
 def get_dist(eta):
@@ -101,14 +102,15 @@ class NegativeBinomialLoss(nn.Module):
 
 class Estimator:
     tensorifier = Tensorifier(['rainfall', 'mean_temperature'])
-    loader = DataLoader
 
-    def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False):
+    def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False, weight_decay=1e-6, n_hidden=4, max_epochs=None):
         self.context_length = context_length
         self.prediction_length = prediction_length
         self.debug = debug
         self.validate = validate
-        self.max_epochs = 2500//context_length
+        self.max_epochs = max_epochs
+        if max_epochs is None:
+            self.max_epochs = 2500 // context_length
 
     def train(self, data: DataSet):
         array_dataset = self.tensorifier.convert(data)
@@ -119,13 +121,16 @@ class Estimator:
         y = np.array([series.disease_cases for series in data.values()]).T
         train_dataset = TSDataSet(X, y, self.context_length, self.prediction_length)
         if self.validate:
-            train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [0.8, 0.2])
-
+            cutoff = int(len(train_dataset) * 0.8)
+            val_dataset = torch.utils.data.Subset(train_dataset, range(cutoff, len(train_dataset)))
+            train_dataset = torch.utils.data.Subset(train_dataset, range(cutoff))
 
         assert len(X) == len(y)
+
         loader = torch.utils.data.DataLoader(train_dataset, batch_size=5, shuffle=True, drop_last=True, num_workers=3)
         if self.validate:
-            val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=5, shuffle=False, drop_last=True, num_workers=3)
+            val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=5, shuffle=False, drop_last=True,
+                                                     num_workers=3)
         module = RNNWithLocationEmbedding(n_locations, array_dataset.shape[-1], 4,
                                           prediction_length=self.prediction_length)
         lightning_module = DeepARLightningModule(
@@ -136,6 +141,7 @@ class Estimator:
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         return Predictor(module, self.tensorifier, transformer, self.context_length, self.prediction_length)
+
 
 def test():
     dataset = DataSet.from_csv('/home/knut/Data/ch_data/rwanda_harmonized.csv', FullData)
