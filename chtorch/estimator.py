@@ -7,6 +7,7 @@ from chap_core.datatypes import FullData, Samples
 from sklearn.preprocessing import StandardScaler
 from torch import nn, optim
 
+from chtorch.count_transforms import Log1pTransform, CountTransform
 from chtorch.data_loader import TSDataSet
 from chtorch.module import RNNWithLocationEmbedding
 from chtorch.tensorifier import Tensorifier
@@ -53,9 +54,9 @@ class DeepARLightningModule(L.LightningModule):
         return optim.Adam(self.parameters(), lr=1e-3, weight_decay=self.weight_decay)
 
 
-def get_dist(eta):
+def get_dist(eta, population, count_transform=Log1pTransform()):
     return torch.distributions.NegativeBinomial(
-        total_count=torch.exp(eta[..., 0] - eta[..., 1]),
+        total_count=count_transform.inverse(eta[..., 0], population)/torch.exp(eta[..., 1]),
         logits=eta[..., 1])
 
 
@@ -87,6 +88,10 @@ class Predictor:
 
 
 class NegativeBinomialLoss(nn.Module):
+    def __init__(self, count_transform: CountTransform = Log1pTransform()):
+        super().__init__()
+        self._count_transform = count_transform
+
     def forward(self, eta, y_true):
         """
         y_pred: (batch_size, 2)  - First column: mean (μ), Second column: dispersion (θ)
@@ -95,13 +100,14 @@ class NegativeBinomialLoss(nn.Module):
         na_mask = ~torch.isnan(y_true)
         y_true = y_true[na_mask]
         eta = eta[na_mask]
-        nb_dist = get_dist(eta)
+        nb_dist = get_dist(eta,0, self._count_transform)
         loss = -nb_dist.log_prob(y_true).mean()
         return loss
 
 
 class Estimator:
-    tensorifier = Tensorifier(['rainfall', 'mean_temperature'])
+    features = ['rainfall', 'mean_temperature']
+    count_transform = Log1pTransform()
 
     def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False, weight_decay=1e-6, n_hidden=4, max_epochs=None):
         self.context_length = context_length
@@ -109,6 +115,7 @@ class Estimator:
         self.debug = debug
         self.validate = validate
         self.max_epochs = max_epochs
+        self.tensorifier = Tensorifier(self.features, self.count_transform)
         if max_epochs is None:
             self.max_epochs = 2500 // context_length
 
@@ -135,7 +142,7 @@ class Estimator:
                                           prediction_length=self.prediction_length)
         lightning_module = DeepARLightningModule(
             module,
-            NegativeBinomialLoss())
+            NegativeBinomialLoss(count_transform=self.count_transform))
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
                             accelerator="cpu")  #"gpu" if torch.cuda.is_available() else "cpu")
 
