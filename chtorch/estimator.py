@@ -44,9 +44,9 @@ class DeepARLightningModule(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        X, locations, y = batch
+        X, locations, y, population = batch
         log_rate = self.module(X, locations).squeeze(-1)
-        loss = self.loss(log_rate, y)
+        loss = self.loss(log_rate, y, population)
         self.log("validation_loss", loss, prog_bar=True, logger=True)
         return loss
 
@@ -116,9 +116,10 @@ class NegativeBinomialLoss(nn.Module):
 
 class Estimator:
     features = ['rainfall', 'mean_temperature']
-    count_transform = Logp1RateTransform()
-    # count_transform = Log1pTransform()
+    #count_transform = Logp1RateTransform()
+    count_transform = Log1pTransform()
     is_flat = True
+
     def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False, weight_decay=1e-6, n_hidden=4, max_epochs=None):
         self.context_length = context_length
         self.prediction_length = prediction_length
@@ -153,7 +154,8 @@ class Estimator:
                                                      num_workers=3)
 
         module = Module(n_locations, array_dataset.shape[-1], 4,
-                                          prediction_length=self.prediction_length)
+                        prediction_length=self.prediction_length, embed_dim=4,
+                        num_rnn_layers=2)
         lightning_module = DeepARLightningModule(
             module,
             NegativeBinomialLoss(count_transform=self.count_transform))

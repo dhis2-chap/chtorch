@@ -21,9 +21,10 @@ app = App()
 
 
 @app.command()
-def validation_training(dataset_path: str, frequency: Literal['M', 'W'] = 'M'):
+def validation_training(dataset_path: str, frequency: Literal['M', 'W'] = 'M', max_epochs: Optional[int] = None):
     dataset = DataSet.from_csv(dataset_path, FullData)
-    kwargs = get_kwargs(frequency)
+    dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
+    kwargs = get_kwargs(frequency) | dict(max_epochs=max_epochs)
     estimator = Estimator(validate=True, **kwargs)
     predictor = estimator.train(dataset)
 

@@ -2,25 +2,48 @@ import torch
 import torch.nn as nn
 
 
-class RNNWithLocationEmbedding(nn.Module):
-    def __init__(self, num_locations, input_feature_dim, hidden_dim, rnn_type='GRU', prediction_length=3):
+class MLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, n_layers):
         super().__init__()
-        self.location_embedding = nn.Embedding(num_locations, 4)  # Embedding layer
-        init_dim = input_feature_dim + 4
+        self.input_layer = nn.Linear(input_dim, hidden_dim)
+        l = []
+        for _ in range(n_layers - 1):
+            l.append(nn.Linear(hidden_dim, hidden_dim))
+            l.append(nn.ReLU())
+        self.hidden_layers = nn.Sequential(*l)
+        self.output_layer = nn.Linear(hidden_dim, output_dim)
+        self.n_layers = n_layers
+
+    def forward(self, x):
+        x = self.input_layer(x)
+        x = nn.ReLU()(x)
+        x = self.hidden_layers(x)
+        x = self.output_layer(x)
+        return x
+
+
+class RNNWithLocationEmbedding(nn.Module):
+    def __init__(self, num_locations, input_feature_dim, hidden_dim, rnn_type='GRU', prediction_length=3, embed_dim=4, num_rnn_layers=1):
+        super().__init__()
+        self.location_embedding = nn.Embedding(num_locations, embed_dim)  # Embedding layer
+        init_dim = input_feature_dim + embed_dim
+
         self.hidden_dim = hidden_dim
-        self.preprocess = nn.Linear(init_dim, hidden_dim)
+        # self.preprocess = nn.Linear(init_dim, hidden_dim)
+        self.preprocess = MLP(init_dim, hidden_dim, hidden_dim, 1)
         # Define RNN (GRU or LSTM)
         if rnn_type == 'GRU':
-            self.rnn = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
+            self.rnn = nn.GRU(hidden_dim, hidden_dim,num_layers=num_rnn_layers, batch_first=True)
         elif rnn_type == 'LSTM':
-            self.rnn = nn.LSTM(hidden_dim, hidden_dim, batch_first=True)
+            self.rnn = nn.LSTM(hidden_dim, hidden_dim, num_layers=num_rnn_layers, batch_first=True)
         else:
             raise ValueError("Unsupported RNN type. Use 'GRU' or 'LSTM'.")
 
-        self.decoder = nn.GRU(1, hidden_dim, batch_first=True)
+        self.decoder = nn.GRU(1, hidden_dim, num_layers=num_rnn_layers, batch_first=True)
         self.output_dim = 2
         self.output_decoder = nn.Linear(hidden_dim, hidden_dim)
-        self.ouput_layer = nn.Linear(hidden_dim, self.output_dim)
+        self.ouput_layer = MLP(hidden_dim, hidden_dim, self.output_dim, 1)
+        #nn.Linear(hidden_dim, self.output_dim)
 
         self.prediction_length = prediction_length
 
