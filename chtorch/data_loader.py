@@ -8,9 +8,10 @@ from pytorch_forecasting import TimeSeriesDataSet
 
 
 class TSDataSet(torch.utils.data.Dataset):
-    def __init__(self, X, y, context_length, prediction_length):
+    def __init__(self, X, y, population,  context_length, prediction_length):
         self.X = X
         self.y = y
+        self.population = population
         self.total_length = context_length + prediction_length
         self.context_length = context_length
         self.prediction_length = prediction_length

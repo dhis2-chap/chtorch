@@ -53,8 +53,14 @@ class Tensorifier:
     count_transform: CountTransform = Log1pTransform()
 
     def convert(self, data: DataSet) -> np.ndarray:
-        matrices = [self._convert_for_location(value) for value in data.values()]
-        return np.array(matrices).swapaxes(0, 1)
+        matrices = []
+        populations = []
+        for value in data.values():
+            m, pop = self._convert_for_location(value)
+            matrices.append(m)
+            populations.append(pop)
+        # matrices = [self._convert_for_location(value) for value in data.values()]
+        return np.array(matrices).swapaxes(0, 1), np.array(populations).T
 
     def to_pydantic(self, data: DataSet) -> TensorOutput:
         df = data.to_pandas()
@@ -90,7 +96,7 @@ class Tensorifier:
         assert not np.isinf(population_column).any(), f"Population column contains infs: {location_data.population}"
         return np.array(
             feature_columns + [year_position, get_covid_mask(location_data.time_period), na_mask, target_column,
-                               population_column]).T
+                               population_column]).T, population
 
 
 def year_position_from_datetime(dt: datetime) -> float:

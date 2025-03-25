@@ -2,7 +2,7 @@ import abc
 from abc import ABC
 
 import numpy as np
-
+import torch as xp
 
 class CountTransform(ABC):
 
@@ -20,7 +20,7 @@ class Log1pTransform(CountTransform):
         return np.log1p(numerator)
 
     def inverse(self, transformed: float, denominator: float) -> float:
-        return np.expm1(transformed)
+        return xp.exp(transformed)
 
 
 class Logp1RateTransform(CountTransform):
@@ -29,4 +29,4 @@ class Logp1RateTransform(CountTransform):
         return np.log1p(numerator) - np.log(denominator)
 
     def inverse(self, transformed: float, denominator: float) -> float:
-        return np.expm1(transformed + np.log(denominator))
+        return xp.expm1(transformed + xp.log(denominator))

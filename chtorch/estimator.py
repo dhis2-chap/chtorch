@@ -38,8 +38,9 @@ class DeepARLightningModule(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         X, locations, y = batch
+        population = 0
         log_rate = self.module(X, locations).squeeze(-1)
-        loss = self.loss(log_rate, y)
+        loss = self.loss(log_rate, y, population)
         self.log("train_loss", loss, prog_bar=True, logger=True)
         return loss
 
@@ -61,23 +62,24 @@ def get_dist(eta, population, count_transform=Log1pTransform()):
 
 
 class Predictor:
-    def __init__(self, module, tensorifier, transformer, context_length=12, prediction_length=3):
+    def __init__(self, module, tensorifier, transformer, context_length=12, prediction_length=3, count_transform=Log1pTransform()):
         super().__init__()
         self.module = module
         self.tensorifier = tensorifier
         self.transformer = transformer
         self.context_length = context_length
         self.prediction_length = prediction_length
+        self.count_transform = count_transform
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
-        historic_tensor = self.tensorifier.convert(historic_data)
+        historic_tensor, population = self.tensorifier.convert(historic_data)
         tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
         historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
-        ts_dataset = TSDataSet(historic_tensor, None, self.context_length, self.prediction_length)
+        ts_dataset = TSDataSet(historic_tensor, None, population, self.context_length, self.prediction_length)
         instance = ts_dataset.last_prediction_instance()
         with torch.no_grad():
             eta = self.module(*instance)
-        samples = get_dist(eta).sample((100,))
+        samples = get_dist(eta, 0, self.count_transform).sample((100,))
         output = {}
         period_range = future_data.period_range
 
@@ -92,7 +94,7 @@ class NegativeBinomialLoss(nn.Module):
         super().__init__()
         self._count_transform = count_transform
 
-    def forward(self, eta, y_true):
+    def forward(self, eta, y_true, population=0):
         """
         y_pred: (batch_size, 2)  - First column: mean (μ), Second column: dispersion (θ)
         y_true: (batch_size, 1)  - Observed counts
@@ -100,7 +102,7 @@ class NegativeBinomialLoss(nn.Module):
         na_mask = ~torch.isnan(y_true)
         y_true = y_true[na_mask]
         eta = eta[na_mask]
-        nb_dist = get_dist(eta,0, self._count_transform)
+        nb_dist = get_dist(eta, population, self._count_transform)
         loss = -nb_dist.log_prob(y_true).mean()
         return loss
 
@@ -120,13 +122,13 @@ class Estimator:
             self.max_epochs = 2500 // context_length
 
     def train(self, data: DataSet):
-        array_dataset = self.tensorifier.convert(data)
+        array_dataset, population = self.tensorifier.convert(data)
         n_locations = array_dataset.shape[1]
         transformer = StandardScaler()
         transformed_dataset = transformer.fit_transform(array_dataset.reshape(-1, array_dataset.shape[-1]))
         X = transformed_dataset.reshape(array_dataset.shape).astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
-        train_dataset = TSDataSet(X, y, self.context_length, self.prediction_length)
+        train_dataset = TSDataSet(X, y, population, self.context_length, self.prediction_length)
         if self.validate:
             cutoff = int(len(train_dataset) * 0.8)
             val_dataset = torch.utils.data.Subset(train_dataset, range(cutoff, len(train_dataset)))
@@ -147,7 +149,7 @@ class Estimator:
                             accelerator="cpu")  #"gpu" if torch.cuda.is_available() else "cpu")
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
-        return Predictor(module, self.tensorifier, transformer, self.context_length, self.prediction_length)
+        return Predictor(module, self.tensorifier, transformer, self.context_length, self.prediction_length, self.count_transform)
 
 
 def test():
