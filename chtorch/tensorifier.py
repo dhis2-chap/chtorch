@@ -50,17 +50,27 @@ def smooth_population(population: np.ndarray) -> np.ndarray:
 @dataclass
 class Tensorifier:
     features: list[str]
-    count_transform: CountTransform = Log1pTransform()
+    count_transform: CountTransform
+
+    def _debug_plot(self, data: DataSet):
+        y = np.concatenate([interpolate_nans(location_data.disease_cases) for location_data in data.values()])
+        population = np.concatenate([smooth_population(location_data.population) for location_data in data.values()])
+        self.count_transform.__class__(np).plot_correlation(y, population)
 
     def convert(self, data: DataSet) -> np.ndarray:
+        # self._debug_plot(data)
         matrices = []
         populations = []
         for value in data.values():
             m, pop = self._convert_for_location(value)
             matrices.append(m)
             populations.append(pop)
+
         # matrices = [self._convert_for_location(value) for value in data.values()]
-        return np.array(matrices).swapaxes(0, 1), np.array(populations).T
+        matrices = np.array(matrices)
+        populations = np.array(populations)
+        # self.count_transform.__class__(np).plot_correlation(matrices[..., -2].ravel(), populations.ravel())
+        return matrices.swapaxes(0, 1), populations.T
 
     def to_pydantic(self, data: DataSet) -> TensorOutput:
         df = data.to_pandas()
@@ -86,6 +96,7 @@ class Tensorifier:
         population_column = np.log(population)
         target_column = interpolate_nans(location_data.disease_cases)
         target_column = self.count_transform.forward(target_column, population)
+
 
         assert not np.isnan(target_column).any(), f"Target column contains NaNs: {location_data.disease_cases}"
         assert not np.isinf(target_column).any(), f"Target column contains infs: {location_data.disease_cases}"

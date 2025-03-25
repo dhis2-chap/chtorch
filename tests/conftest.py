@@ -11,3 +11,4 @@ def electricity_dataset():
 @pytest.fixture
 def ch_dataset():
     return ISIMIP_dengue_harmonized['vietnam']
+

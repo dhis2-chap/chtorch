@@ -8,10 +8,10 @@ from pytorch_forecasting import TimeSeriesDataSet
 
 
 class TSDataSet(torch.utils.data.Dataset):
-    def __init__(self, X, y, population,  context_length, prediction_length):
+    def __init__(self, X, y, population, context_length, prediction_length):
         if y is not None:
             assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
-        self.X = X
+        self.X = X  # time, location, feature
         self.y = y
         self.population = population
         self.total_length = context_length + prediction_length
@@ -32,7 +32,31 @@ class TSDataSet(torch.utils.data.Dataset):
 
     def last_prediction_instance(self):
         last_population = self.population[-1]
-        return torch.from_numpy(self.X[None, -self.context_length:, ...]), torch.from_numpy(self.locations[None, ...]), torch.from_numpy(last_population)
+        repeated_population = np.array([last_population for _ in range(self.prediction_length)])
+        return (torch.from_numpy(self.X[None, -self.context_length:, ...]),
+                torch.from_numpy(self.locations[None, ...]),
+                torch.from_numpy(repeated_population[None, ...]))
+
+
+class FlatTSDataSet(TSDataSet):
+    def __len__(self):
+        return (len(self.X) - self.total_length + 1) * self.X.shape[1]
+
+    def __getitem__(self, item):
+        i, j = divmod(item, self.X.shape[1])
+        x = self.X[i:i + self.context_length, j]
+        y = self.y[i + self.context_length:i + self.total_length, j]
+        population = self.population[i + self.context_length:i + self.total_length, j]
+        assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
+        return x, j, y, population
+
+    def last_prediction_instance(self):
+        last_population = self.population[-1:].T
+        repeated_population = np.repeat(last_population, self.prediction_length, axis=1)
+        return (torch.from_numpy(self.X[-self.context_length:, ...].swapaxes(0, 1)),
+                torch.from_numpy(self.locations[0]),
+                torch.from_numpy(repeated_population))
+
 
 #
 # class DataLoader:

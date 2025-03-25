@@ -61,7 +61,7 @@ def get_dist(eta, population, count_transform):
 
 
 class Predictor:
-    def __init__(self, module, tensorifier, transformer, context_length=12, prediction_length=3, count_transform=Log1pTransform()):
+    def __init__(self, module, tensorifier, transformer, context_length=12, prediction_length=3, count_transform=None):
         super().__init__()
         self.module = module
         self.tensorifier = tensorifier
@@ -89,7 +89,7 @@ class Predictor:
 
 
 class NegativeBinomialLoss(nn.Module):
-    def __init__(self, count_transform: CountTransform = Log1pTransform()):
+    def __init__(self, count_transform: CountTransform):
         super().__init__()
         self._count_transform = count_transform
 
@@ -109,8 +109,8 @@ class NegativeBinomialLoss(nn.Module):
 
 class Estimator:
     features = ['rainfall', 'mean_temperature']
+    #count_transform = Log1pTransform()
     count_transform = Logp1RateTransform()
-
     def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False, weight_decay=1e-6, n_hidden=4, max_epochs=None):
         self.context_length = context_length
         self.prediction_length = prediction_length
