@@ -7,7 +7,7 @@ from chap_core.datatypes import FullData, Samples
 from sklearn.preprocessing import StandardScaler
 from torch import nn, optim
 
-from chtorch.count_transforms import Log1pTransform, CountTransform
+from chtorch.count_transforms import Log1pTransform, CountTransform, Logp1RateTransform
 from chtorch.data_loader import TSDataSet
 from chtorch.module import RNNWithLocationEmbedding
 from chtorch.tensorifier import Tensorifier
@@ -54,7 +54,7 @@ class DeepARLightningModule(L.LightningModule):
         return optim.Adam(self.parameters(), lr=1e-3, weight_decay=self.weight_decay)
 
 
-def get_dist(eta, population, count_transform=Log1pTransform()):
+def get_dist(eta, population, count_transform):
     return torch.distributions.NegativeBinomial(
         total_count=count_transform.inverse(eta[..., 0], population)/torch.exp(eta[..., 1]),
         logits=eta[..., 1])
@@ -93,13 +93,14 @@ class NegativeBinomialLoss(nn.Module):
         super().__init__()
         self._count_transform = count_transform
 
-    def forward(self, eta, y_true, population=0):
+    def forward(self, eta, y_true, population):
         """
         y_pred: (batch_size, 2)  - First column: mean (μ), Second column: dispersion (θ)
         y_true: (batch_size, 1)  - Observed counts
         """
         na_mask = ~torch.isnan(y_true)
         y_true = y_true[na_mask]
+        population = population[na_mask]
         eta = eta[na_mask]
         nb_dist = get_dist(eta, population, self._count_transform)
         loss = -nb_dist.log_prob(y_true).mean()
@@ -108,7 +109,7 @@ class NegativeBinomialLoss(nn.Module):
 
 class Estimator:
     features = ['rainfall', 'mean_temperature']
-    count_transform = Log1pTransform()
+    count_transform = Logp1RateTransform()
 
     def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False, weight_decay=1e-6, n_hidden=4, max_epochs=None):
         self.context_length = context_length
@@ -139,6 +140,7 @@ class Estimator:
         if self.validate:
             val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=5, shuffle=False, drop_last=True,
                                                      num_workers=3)
+
         module = RNNWithLocationEmbedding(n_locations, array_dataset.shape[-1], 4,
                                           prediction_length=self.prediction_length)
         lightning_module = DeepARLightningModule(

@@ -9,6 +9,8 @@ from pytorch_forecasting import TimeSeriesDataSet
 
 class TSDataSet(torch.utils.data.Dataset):
     def __init__(self, X, y, population,  context_length, prediction_length):
+        if y is not None:
+            assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         self.X = X
         self.y = y
         self.population = population
@@ -25,11 +27,12 @@ class TSDataSet(torch.utils.data.Dataset):
         x = self.X[i:i + self.context_length]
         y = self.y[i + self.context_length:i + self.total_length]
         population = self.population[i + self.context_length:i + self.total_length]
+        assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         return x, self.locations, y, population
 
     def last_prediction_instance(self):
         last_population = self.population[-1]
-        return torch.from_numpy(self.X[None, -self.context_length:, ...]), torch.from_numpy(self.locations[None, ...]), last_population
+        return torch.from_numpy(self.X[None, -self.context_length:, ...]), torch.from_numpy(self.locations[None, ...]), torch.from_numpy(last_population)
 
 #
 # class DataLoader:
