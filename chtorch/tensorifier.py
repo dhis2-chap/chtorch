@@ -46,6 +46,7 @@ def concatenate_pydantic(data: list[TensorOutput]) -> TensorOutput:
 def smooth_population(population: np.ndarray) -> np.ndarray:
     return np.full_like(population, np.median(population))
 
+
 @dataclass
 class Tensorifier:
     features: list[str]
