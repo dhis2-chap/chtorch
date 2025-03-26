@@ -154,8 +154,9 @@ class Estimator:
                                                      num_workers=3)
 
         module = Module(n_locations, array_dataset.shape[-1], 4,
-                        prediction_length=self.prediction_length, embed_dim=4,
-                        num_rnn_layers=2)
+                        prediction_length=self.prediction_length,
+                        embed_dim=2,
+                        num_rnn_layers=1)
         lightning_module = DeepARLightningModule(
             module,
             NegativeBinomialLoss(count_transform=self.count_transform))
