@@ -7,10 +7,11 @@ from chap_core.assessment.dataset_splitting import train_test_generator
 from chap_core.assessment.prediction_evaluator import evaluate_model, backtest
 from chap_core.climate_predictor import QuickForecastFetcher
 from chap_core.datatypes import FullData
+from chap_core.geometry import Polygons
 from chap_core.rest_api_src.worker_functions import samples_to_evaluation_response, dataset_to_datalist
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
+from chtorch.validation import validate_dataset, filter_dataset
 from cyclopts import App
-
 
 from chtorch.estimator import Estimator
 import logging
@@ -34,12 +35,12 @@ def get_kwargs(frequency):
                                                                                        prediction_length=4)
 
 
-
 def get_commit_hash(path="."):
     return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=path).decode().strip()
 
+
 @app.command()
-def evaluate(dataset_path: str, frequency: Literal['M', 'W'] = 'M', max_epochs: Optional[int] = None):
+def evaluate(dataset_path: str, frequency: Literal['M', 'W'] = 'M', max_epochs: Optional[int] = None, remove_last_year: bool = True):
     '''
     This function should just be type hinted with common types,
     and it will run as a command line function
@@ -47,19 +48,27 @@ def evaluate(dataset_path: str, frequency: Literal['M', 'W'] = 'M', max_epochs: 
 
     >>> main_function()
     '''
-
     dataset = DataSet.from_csv(dataset_path, FullData)
-    stem = Path(dataset_path).stem
     kwargs = get_kwargs(frequency) | dict(max_epochs=max_epochs)
-    dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
+    dataset = filter_dataset(dataset, 12+kwargs['prediction_length'])
+    stem = Path(dataset_path).stem
+    if remove_last_year:
+        dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
+    validate_dataset(dataset, lag=12)
     estimator = Estimator(**kwargs)
     predictions_list = backtest(estimator, dataset, prediction_length=kwargs['prediction_length'],
                                 n_test_sets=12 if frequency == 'M' else 26, stride=1,
                                 weather_provider=QuickForecastFetcher)
+    name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
+    name_lookup = {id: f'{t[0]}' for id, t in name_lookup.items()}
     response = samples_to_evaluation_response(
         predictions_list,
         quantiles=[0.05, 0.25, 0.5, 0.75, 0.95],
         real_data=dataset_to_datalist(dataset, 'dengue'))
+    for evaluation_entry in response.predictions:
+        evaluation_entry.orgUnit = name_lookup[evaluation_entry.orgUnit]
+    for real_case in response.actualCases.data:
+        real_case.ou = name_lookup[real_case.ou]
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     hash = get_commit_hash()
     with open(f'{stem}_evaluation_{timestamp}_{hash}.json', 'w') as f:

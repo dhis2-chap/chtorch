@@ -7,9 +7,11 @@ from chap_core.datatypes import TimeSeriesData
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 from chap_core.time_period.date_util_wrapper import TimeStamp
 from pydantic import BaseModel
+import logging
 
 from chtorch.count_transforms import CountTransform, Log1pTransform
 
+logger = logging.getLogger(__name__)
 
 def nan_helper(y):
     return np.isnan(y), lambda z: z.nonzero()[0]
@@ -61,7 +63,8 @@ class Tensorifier:
         # self._debug_plot(data)
         matrices = []
         populations = []
-        for value in data.values():
+        for name, value in data.items():
+            logger.info(f"Converting {name}")
             m, pop = self._convert_for_location(value)
             matrices.append(m)
             populations.append(pop)
