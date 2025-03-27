@@ -49,15 +49,17 @@ def evaluate(dataset_path: str, frequency: Literal['M', 'W'] = 'M', max_epochs: 
     >>> main_function()
     '''
     dataset = DataSet.from_csv(dataset_path, FullData)
+    n_test_sets = 3 if frequency == 'M' else 26
     kwargs = get_kwargs(frequency) | dict(max_epochs=max_epochs)
-    dataset = filter_dataset(dataset, 12+kwargs['prediction_length'])
+    dataset = filter_dataset(dataset, n_test_sets+kwargs['prediction_length'])
     stem = Path(dataset_path).stem
     if remove_last_year:
         dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
     validate_dataset(dataset, lag=12)
     estimator = Estimator(**kwargs)
+
     predictions_list = backtest(estimator, dataset, prediction_length=kwargs['prediction_length'],
-                                n_test_sets=12 if frequency == 'M' else 26, stride=1,
+                                n_test_sets=n_test_sets, stride=1,
                                 weather_provider=QuickForecastFetcher)
     name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
     name_lookup = {id: f'{t[0]}' for id, t in name_lookup.items()}

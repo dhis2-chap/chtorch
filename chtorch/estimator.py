@@ -1,13 +1,12 @@
-from typing import Any
-
 import numpy as np
 import torch
 from chap_core.data import DataSet
 from chap_core.datatypes import FullData, Samples
+from chtorch.distribution_loss import NegativeBinomialLoss, get_dist
+from chtorch.lightning_module import DeepARLightningModule
 from sklearn.preprocessing import StandardScaler
-from torch import nn, optim
-
-from chtorch.count_transforms import Log1pTransform, CountTransform, Logp1RateTransform
+from pydantic import BaseModel
+from chtorch.count_transforms import Log1pTransform
 from chtorch.data_loader import TSDataSet, FlatTSDataSet
 from chtorch.module import RNNWithLocationEmbedding, FlatRNN
 from chtorch.tensorifier import Tensorifier
@@ -24,40 +23,6 @@ logits = -logit(mean / variance)
 logits = -log(mean/variance)
 
 '''
-
-
-class DeepARLightningModule(L.LightningModule):
-    def __init__(self, module, loss, weight_decay=1e-6):
-        super().__init__()
-        self.module = module
-        self.loss = loss
-        self.weight_decay = weight_decay
-
-    def forward(self, *args: Any, **kwargs: Any) -> Any:
-        return self.module(*args, **kwargs)
-
-    def training_step(self, batch, batch_idx):
-        X, locations, y, population = batch
-        log_rate = self.module(X, locations).squeeze(-1)
-        loss = self.loss(log_rate, y, population)
-        self.log("train_loss", loss, prog_bar=True, logger=True)
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        X, locations, y, population = batch
-        log_rate = self.module(X, locations).squeeze(-1)
-        loss = self.loss(log_rate, y, population)
-        self.log("validation_loss", loss, prog_bar=True, logger=True)
-        return loss
-
-    def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=1e-3, weight_decay=self.weight_decay)
-
-
-def get_dist(eta, population, count_transform):
-    return torch.distributions.NegativeBinomial(
-        total_count=count_transform.inverse(eta[..., 0], population)/torch.exp(eta[..., 1]),
-        logits=eta[..., 1])
 
 
 class Predictor:
@@ -94,29 +59,18 @@ class Predictor:
             output[location] = Samples(period_range, s)
         return DataSet(output)
 
-
-class NegativeBinomialLoss(nn.Module):
-    def __init__(self, count_transform: CountTransform):
-        super().__init__()
-        self._count_transform = count_transform
-
-    def forward(self, eta, y_true, population):
-        """
-        y_pred: (batch_size, 2)  - First column: mean (μ), Second column: dispersion (θ)
-        y_true: (batch_size, 1)  - Observed counts
-        """
-        na_mask = ~torch.isnan(y_true)
-        y_true = y_true[na_mask]
-        population = population[na_mask]
-        eta = eta[na_mask]
-        nb_dist = get_dist(eta, population, self._count_transform)
-        loss = -nb_dist.log_prob(y_true).mean()
-        return loss
-
+class ModelConfiguration(BaseModel):
+    weight_decay: float = 1e-6
+    n_hidden: int = 4
+    max_epochs: int | None = None
+    context_length: int = 12
+    embed_dim: int = 2,
+    num_rnn_layers: int = 1
+    n_layers: int = 0
+    prediction_length: int = 3
 
 class Estimator:
     features = ['rainfall', 'mean_temperature']
-    # count_transform = Logp1RateTransform()
     count_transform = Log1pTransform()
     is_flat = True
 
@@ -153,10 +107,10 @@ class Estimator:
             val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=True,
                                                      num_workers=3)
 
-        module = Module(n_locations, array_dataset.shape[-1], 4,
+        module = Module(n_locations, array_dataset.shape[-1], 2,
                         prediction_length=self.prediction_length,
                         embed_dim=2,
-                        num_rnn_layers=1)
+                        num_rnn_layers=1, n_layers=0)
         lightning_module = DeepARLightningModule(
             module,
             NegativeBinomialLoss(count_transform=self.count_transform))
