@@ -103,12 +103,17 @@ class Estimator:
     tensorifier = Tensorifier(['rainfall', 'mean_temperature'])
     loader = DataLoader
 
-    def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False):
+    def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False,
+                 hidden_dim=4, embed_dim=4, weight_decay=1e-6): # ADDED
         self.context_length = context_length
         self.prediction_length = prediction_length
         self.debug = debug
         self.validate = validate
         self.max_epochs = 2500//context_length
+        self.hidden_dim = hidden_dim # ADDED
+        self.embed_dim = embed_dim # ADDED
+        self.weight_decay = weight_decay # ADDED
+
 
     def train(self, data: DataSet):
         array_dataset = self.tensorifier.convert(data)
