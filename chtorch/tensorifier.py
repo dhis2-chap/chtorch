@@ -53,6 +53,7 @@ def smooth_population(population: np.ndarray) -> np.ndarray:
 class Tensorifier:
     features: list[str]
     count_transform: CountTransform
+    replace_zeros: bool = False
 
     def _debug_plot(self, data: DataSet):
         y = np.concatenate([interpolate_nans(location_data.disease_cases) for location_data in data.values()])
@@ -97,14 +98,17 @@ class Tensorifier:
 
         population = smooth_population(location_data.population)
         population_column = np.log(population)
-        target_column = interpolate_nans(location_data.disease_cases)
+        cases = location_data.disease_cases
+        if self.replace_zeros:
+            cases = np.where(cases == 0, np.nan, cases)
+        target_column = interpolate_nans(cases)
         target_column = self.count_transform.forward(target_column, population)
 
 
         assert not np.isnan(target_column).any(), f"Target column contains NaNs: {location_data.disease_cases}"
         assert not np.isinf(target_column).any(), f"Target column contains infs: {location_data.disease_cases}"
 
-        na_mask = np.isnan(location_data.disease_cases)
+        na_mask = np.isnan(cases)
 
         assert not np.isnan(population_column).any(), f"Population column contains NaNs: {location_data.population}"
         assert not np.isinf(population_column).any(), f"Population column contains infs: {location_data.population}"

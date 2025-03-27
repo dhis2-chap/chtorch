@@ -15,7 +15,7 @@ from chtorch.model_template import TorchModelTemplate
 from chtorch.validation import validate_dataset, filter_dataset
 from cyclopts import App
 
-from chtorch.estimator import Estimator, ModelConfiguration
+from chtorch.estimator import Estimator, ModelConfiguration, ProblemConfiguration
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,11 +24,11 @@ app = App()
 
 
 @app.command()
-def validation_training(dataset_path: str, frequency: Literal['M', 'W'] = 'M', max_epochs: Optional[int] = None):
+def validation_training(dataset_path: str, frequency: Literal['M', 'W'] = 'M',
+                        cfg: ModelConfiguration = ModelConfiguration(), p_cfg: ProblemConfiguration = ProblemConfiguration()):
     dataset = DataSet.from_csv(dataset_path, FullData)
     dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
-    kwargs = get_kwargs(frequency) | dict(max_epochs=max_epochs)
-    estimator = Estimator(validate=True, **kwargs)
+    estimator = Estimator(model_configuration=cfg, problem_configuration=p_cfg, validate=True)
     predictor = estimator.train(dataset)
 
 
@@ -42,7 +42,11 @@ def get_commit_hash(path="."):
 
 
 @app.command()
-def evaluate(dataset_path: str, frequency: Literal['M', 'W'] = 'M', remove_last_year: bool = True, cfg: ModelConfiguration = ModelConfiguration()):
+def evaluate(dataset_path: str,
+             frequency: Literal['M', 'W'] = 'M',
+             remove_last_year: bool = True,
+             cfg: ModelConfiguration = ModelConfiguration(),
+             p_cfg: ProblemConfiguration = ProblemConfiguration()):
     '''
     This function should just be type hinted with common types,
     and it will run as a command line function
@@ -53,18 +57,15 @@ def evaluate(dataset_path: str, frequency: Literal['M', 'W'] = 'M', remove_last_
     dataset = DataSet.from_csv(dataset_path, FullData)
     n_test_sets = 3 if frequency == 'M' else 26
     kwargs = get_kwargs(frequency)# | dict(max_epochs=max_epochs)
-    prediction_length = kwargs['prediction_length']
     dataset = filter_dataset(dataset, n_test_sets+kwargs['prediction_length'])
     stem = Path(dataset_path).stem
     if remove_last_year:
         dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
     validate_dataset(dataset, lag=12)
     model_configuration = cfg
-    print(model_configuration)
-    model_template = TorchModelTemplate(prediction_length=prediction_length)
+    model_template = TorchModelTemplate(p_cfg)
     estimator = model_template.get_model(model_configuration)
-    #estimator = Estimator(prediction_length=prediction_length, model_configuration=model_configuration)
-    predictions_list = backtest(estimator, dataset, prediction_length=kwargs['prediction_length'],
+    predictions_list = backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
                                 n_test_sets=n_test_sets, stride=1,
                                 weather_provider=QuickForecastFetcher)
     name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()

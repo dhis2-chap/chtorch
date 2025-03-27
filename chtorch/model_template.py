@@ -1,20 +1,14 @@
 from chap_core import ModelTemplateInterface
-from chtorch.estimator import ModelConfiguration, Estimator
-from pydantic import BaseModel
+from chtorch.estimator import ModelConfiguration, Estimator, ProblemConfiguration
 
 
 class TorchModelTemplate(ModelTemplateInterface):
-    def __init__(self, prediction_length):
-        self.prediction_length = prediction_length
+    def __init__(self, problem_configuration: ProblemConfiguration):
+        self.problem_configuration = problem_configuration
 
     def get_config_class(self):
         return ModelConfiguration
 
     def get_model(self, config: ModelConfiguration):
-        return Estimator(prediction_length=self.prediction_length,
+        return Estimator(problem_configuration=self.problem_configuration,
                          model_configuration=config)
-
-
-
-
-

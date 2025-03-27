@@ -1,3 +1,5 @@
+import dataclasses
+
 import numpy as np
 import torch
 from chap_core.data import DataSet
@@ -70,18 +72,32 @@ class ModelConfiguration(BaseModel):
     n_layers: int = 0
 
 
+class ProblemConfiguration(BaseModel):
+    prediction_length: int = 3
+    replace_zeros: bool = False
+
+
+model_config = ModelConfiguration(weight_decay=1e-6, n_hidden=4, max_epochs=200, context_length=12, embed_dim=2,
+                                  num_rnn_layers=1, n_layers=0)
+with open('model_config.json', 'w') as f:
+    model_config.model_dump()
+
+
 class Estimator:
     features = ['rainfall', 'mean_temperature']
     count_transform = Log1pTransform()
     is_flat = True
 
-    def __init__(self, prediction_length: int,  model_configuration: ModelConfiguration, debug=False, validate=False):
+    def __init__(self, problem_configuration: ProblemConfiguration,
+                 model_configuration: ModelConfiguration,
+                 debug=False, validate=False):
+        self.last_val_loss = None
         self.context_length = model_configuration.context_length
-        self.prediction_length = prediction_length
+        self.prediction_length = problem_configuration.prediction_length
         self.debug = debug
         self.validate = validate
         self.max_epochs = model_configuration.max_epochs
-        self.tensorifier = Tensorifier(self.features, self.count_transform)
+        self.tensorifier = Tensorifier(self.features, self.count_transform, problem_configuration.replace_zeros)
         self.model_configuration = model_configuration
 
         if self.max_epochs is None:
@@ -124,6 +140,8 @@ class Estimator:
                             accelerator="cpu")  # "gpu" if torch.cuda.is_available() else "cpu")
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
+        self.last_val_loss = lightning_module.last_validation_loss
+        print('####################', float(self.last_val_loss))
         return Predictor(module, self.tensorifier, transformer, self.context_length, self.prediction_length,
                          self.count_transform)
 
