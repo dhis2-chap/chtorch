@@ -49,7 +49,8 @@ def objective(trial):
     estimator.embed_dim = embed_dim 
     estimator.weight_decay = weight_decay
 
-    dataset = DataSet.from_csv('/home/knut/Data/ch_data/rwanda_harmonized.csv', FullData)
+    path = input("Dataset path: ")
+    dataset = DataSet.from_csv(path, FullData)
     predictor = estimator.train(dataset)
 
     val_loss = estimator.final_val_loss
