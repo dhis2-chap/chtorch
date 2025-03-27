@@ -68,7 +68,6 @@ class ModelConfiguration(BaseModel):
     embed_dim: int = 2
     num_rnn_layers: int = 1
     n_layers: int = 0
-    prediction_length: int = 3
 
 
 class Estimator:
@@ -76,16 +75,17 @@ class Estimator:
     count_transform = Log1pTransform()
     is_flat = True
 
-    def __init__(self, model_configuration: ModelConfiguration, debug=False, validate=False):
+    def __init__(self, prediction_length: int,  model_configuration: ModelConfiguration, debug=False, validate=False):
         self.context_length = model_configuration.context_length
-        self.prediction_length = model_configuration.prediction_length
+        self.prediction_length = prediction_length
         self.debug = debug
         self.validate = validate
         self.max_epochs = model_configuration.max_epochs
         self.tensorifier = Tensorifier(self.features, self.count_transform)
         self.model_configuration = model_configuration
+
         if self.max_epochs is None:
-            self.max_epochs = 2500 // context_length
+            self.max_epochs = 2500 // self.context_length
 
     def train(self, data: DataSet):
         array_dataset, population = self.tensorifier.convert(data)

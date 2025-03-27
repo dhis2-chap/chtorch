@@ -27,7 +27,6 @@ class RNNWithLocationEmbedding(nn.Module):
         super().__init__()
         self.location_embedding = nn.Embedding(num_locations, embed_dim)  # Embedding layer
         init_dim = input_feature_dim + embed_dim
-
         self.hidden_dim = hidden_dim
         # self.preprocess = nn.Linear(init_dim, hidden_dim)
         self.preprocess = MLP(init_dim, hidden_dim, hidden_dim, n_layers)

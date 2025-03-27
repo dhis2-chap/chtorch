@@ -10,6 +10,8 @@ from chap_core.datatypes import FullData
 from chap_core.geometry import Polygons
 from chap_core.rest_api_src.worker_functions import samples_to_evaluation_response, dataset_to_datalist
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
+
+from chtorch.model_template import TorchModelTemplate
 from chtorch.validation import validate_dataset, filter_dataset
 from cyclopts import App
 
@@ -40,7 +42,7 @@ def get_commit_hash(path="."):
 
 
 @app.command()
-def evaluate(dataset_path: str, frequency: Literal['M', 'W'] = 'M', max_epochs: Optional[int] = None, remove_last_year: bool = True):
+def evaluate(dataset_path: str, frequency: Literal['M', 'W'] = 'M', remove_last_year: bool = True, cfg: ModelConfiguration = ModelConfiguration()):
     '''
     This function should just be type hinted with common types,
     and it will run as a command line function
@@ -50,18 +52,18 @@ def evaluate(dataset_path: str, frequency: Literal['M', 'W'] = 'M', max_epochs: 
     '''
     dataset = DataSet.from_csv(dataset_path, FullData)
     n_test_sets = 3 if frequency == 'M' else 26
-    kwargs = get_kwargs(frequency) | dict(max_epochs=max_epochs)
-
+    kwargs = get_kwargs(frequency)# | dict(max_epochs=max_epochs)
+    prediction_length = kwargs['prediction_length']
     dataset = filter_dataset(dataset, n_test_sets+kwargs['prediction_length'])
     stem = Path(dataset_path).stem
     if remove_last_year:
         dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
     validate_dataset(dataset, lag=12)
-    print(kwargs)
-    model_configuration = ModelConfiguration(**kwargs)
+    model_configuration = cfg
     print(model_configuration)
-    estimator = Estimator(model_configuration)
-
+    model_template = TorchModelTemplate(prediction_length=prediction_length)
+    estimator = model_template.get_model(model_configuration)
+    #estimator = Estimator(prediction_length=prediction_length, model_configuration=model_configuration)
     predictions_list = backtest(estimator, dataset, prediction_length=kwargs['prediction_length'],
                                 n_test_sets=n_test_sets, stride=1,
                                 weather_provider=QuickForecastFetcher)
@@ -77,9 +79,13 @@ def evaluate(dataset_path: str, frequency: Literal['M', 'W'] = 'M', max_epochs: 
         real_case.ou = name_lookup[real_case.ou]
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     hash = get_commit_hash()
-    with open(f'{stem}_evaluation_{timestamp}_{hash}.json', 'w') as f:
+    run_id = f'{timestamp}_{hash}'
+    filename = f'{stem}_evaluation_{run_id}.json'
+    with open(filename, 'w') as f:
         f.write(response.json())
-    logger.info(f'Evaluation results saved to {stem}_evaluation_{timestamp}.json')
+    with open(f'{filename}.params.json', 'w') as f:
+        f.write(model_configuration.json())
+    logger.info(f'Evaluation results saved to {filename}')
 
 
 def main():
