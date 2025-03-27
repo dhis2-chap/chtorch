@@ -110,6 +110,7 @@ class Estimator:
         self.debug = debug
         self.validate = validate
         self.max_epochs = 2500//context_length
+        self.max_epochs = 2
         self.hidden_dim = hidden_dim # ADDED
         self.embed_dim = embed_dim # ADDED
         self.weight_decay = weight_decay # ADDED

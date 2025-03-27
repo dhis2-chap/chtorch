@@ -1,0 +1,3 @@
+epoch,step,train_loss,validation_loss
+0,29,,84.96624050218495
+1,49,65.6733811796292,

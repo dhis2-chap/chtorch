@@ -10,7 +10,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['typer', 'chap-core', 'torch', 'lightning', 'pytorch_forecasting']
+requirements = ['typer', 'chap-core', 'torch', 'lightning', 'pytorch_forecasting', 'optuna']
 
 test_requirements = ['pytest>=3', "hypothesis"]
 
