@@ -59,29 +59,32 @@ class Predictor:
             output[location] = Samples(period_range, s)
         return DataSet(output)
 
+
 class ModelConfiguration(BaseModel):
     weight_decay: float = 1e-6
     n_hidden: int = 4
     max_epochs: int | None = None
     context_length: int = 12
-    embed_dim: int = 2,
+    embed_dim: int = 2
     num_rnn_layers: int = 1
     n_layers: int = 0
     prediction_length: int = 3
+
 
 class Estimator:
     features = ['rainfall', 'mean_temperature']
     count_transform = Log1pTransform()
     is_flat = True
 
-    def __init__(self, context_length=12, prediction_length=3, debug=False, validate=False, weight_decay=1e-6, n_hidden=4, max_epochs=None):
-        self.context_length = context_length
-        self.prediction_length = prediction_length
+    def __init__(self, model_configuration: ModelConfiguration, debug=False, validate=False):
+        self.context_length = model_configuration.context_length
+        self.prediction_length = model_configuration.prediction_length
         self.debug = debug
         self.validate = validate
-        self.max_epochs = max_epochs
+        self.max_epochs = model_configuration.max_epochs
         self.tensorifier = Tensorifier(self.features, self.count_transform)
-        if max_epochs is None:
+        self.model_configuration = model_configuration
+        if self.max_epochs is None:
             self.max_epochs = 2500 // context_length
 
     def train(self, data: DataSet):
@@ -102,23 +105,27 @@ class Estimator:
         assert len(X) == len(y)
 
         batch_size = 64 if self.is_flat else 8
-        loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=3)
+        loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True,
+                                             num_workers=3)
         if self.validate:
             val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=True,
                                                      num_workers=3)
 
-        module = Module(n_locations, array_dataset.shape[-1], 2,
+        module = Module(n_locations, array_dataset.shape[-1],
+                        hidden_dim=self.model_configuration.n_hidden,
                         prediction_length=self.prediction_length,
-                        embed_dim=2,
-                        num_rnn_layers=1, n_layers=0)
+                        embed_dim=self.model_configuration.embed_dim,
+                        num_rnn_layers=self.model_configuration.num_rnn_layers,
+                        n_layers=self.model_configuration.n_layers)
         lightning_module = DeepARLightningModule(
             module,
             NegativeBinomialLoss(count_transform=self.count_transform))
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
-                            accelerator="cpu")  #"gpu" if torch.cuda.is_available() else "cpu")
+                            accelerator="cpu")  # "gpu" if torch.cuda.is_available() else "cpu")
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
-        return Predictor(module, self.tensorifier, transformer, self.context_length, self.prediction_length, self.count_transform)
+        return Predictor(module, self.tensorifier, transformer, self.context_length, self.prediction_length,
+                         self.count_transform)
 
 
 def test():
