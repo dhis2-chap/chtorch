@@ -70,10 +70,8 @@ class Tensorifier:
             matrices.append(m)
             populations.append(pop)
 
-        # matrices = [self._convert_for_location(value) for value in data.values()]
         matrices = np.array(matrices)
         populations = np.array(populations)
-        # self.count_transform.__class__(np).plot_correlation(matrices[..., -2].ravel(), populations.ravel())
         return matrices.swapaxes(0, 1), populations.T
 
     def to_pydantic(self, data: DataSet) -> TensorOutput:
@@ -103,8 +101,6 @@ class Tensorifier:
             cases = np.where(cases == 0, np.nan, cases)
         target_column = interpolate_nans(cases)
         target_column = self.count_transform.forward(target_column, population)
-
-
         assert not np.isnan(target_column).any(), f"Target column contains NaNs: {location_data.disease_cases}"
         assert not np.isinf(target_column).any(), f"Target column contains infs: {location_data.disease_cases}"
 

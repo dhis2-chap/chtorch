@@ -77,7 +77,11 @@ class ProblemConfiguration(BaseModel):
     replace_zeros: bool = False
 
 
-model_config = ModelConfiguration(weight_decay=1e-6, n_hidden=4, max_epochs=200, context_length=12, embed_dim=2,
+model_config = ModelConfiguration(weight_decay=1e-6,
+                                  n_hidden=4,
+                                  max_epochs=200,
+                                  context_length=12,
+                                  embed_dim=2,
                                   num_rnn_layers=1, n_layers=0)
 with open('model_config.json', 'w') as f:
     model_config.model_dump()

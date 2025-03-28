@@ -18,7 +18,8 @@ class TSDataSet(torch.utils.data.Dataset):
         self.context_length = context_length
         self.prediction_length = prediction_length
         n_locations = X.shape[1]
-        self.locations = np.array([np.arange(n_locations) for _ in range(context_length)])
+        self.locations = np.array([np.arange(n_locations) for _ in range(context_length)])[..., None]
+        self.n_locations = n_locations
 
     def __len__(self):
         return len(self.X) - self.total_length + 1
@@ -48,30 +49,13 @@ class FlatTSDataSet(TSDataSet):
         y = self.y[i + self.context_length:i + self.total_length, j]
         population = self.population[i + self.context_length:i + self.total_length, j]
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
-        return x, np.full(self.context_length, j), y, population
+        return x, np.full(self.context_length, j)[..., None], y, population
 
     def last_prediction_instance(self):
         last_population = self.population[-1:].T
         repeated_population = np.repeat(last_population, self.prediction_length, axis=1)
-        location = np.array([self.locations[0] for t in range(self.context_length)]).T
+        location = np.array([self.locations[0] for t in range(self.context_length)]).swapaxes(0, 1)
+        assert location.shape == (self.n_locations, self.context_length, 1), location.shape
         return (torch.from_numpy(self.X[-self.context_length:, ...].swapaxes(0, 1)),
                 torch.from_numpy(location),
                 torch.from_numpy(repeated_population))
-
-
-#
-# class DataLoader:
-#     def __init__(self, X, y, context_length, prediction_length, batch_size):
-#         self.X = X
-#         self.y = y
-#         self.context_length = context_length
-#         self.prediction_length = prediction_length
-#         self.total_length = context_length + prediction_length + batch_size - 1
-#         self.batch_size = batch_size
-#
-#     def __iter__(self):
-#         for i in range(len(self.X) - self.total_length + 1):
-#             x = np.array([self.X[j:j + self.context_length] for j in range(i, i + self.batch_size)])
-#             y = np.array([self.y[j + self.context_length: j + self.context_length + self.prediction_length]
-#                           for j in range(i, i + self.batch_size)])
-#             yield x, y

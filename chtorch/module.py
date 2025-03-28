@@ -55,7 +55,7 @@ class RNNWithLocationEmbedding(nn.Module):
         batch_size, time_steps, num_locations, feature_dim = x.shape
 
         # Embed locations: (batch, time, location) -> (batch, time, location, 4)
-        loc_embeds = self.location_embedding(locations)
+        loc_embeds = self.location_embedding(locations[...,0])
 
         # Concatenate features with location embeddings
         x_with_loc = torch.cat([x, loc_embeds], dim=-1)  # (batch, time, location, feature_dim + 4)
@@ -82,7 +82,7 @@ class FlatRNN(RNNWithLocationEmbedding):
         batch_size, time_steps, feature_dim = x.shape
 
         # Embed locations: (batch, time, location) -> (batch, time, location, 4)
-        loc_embeds = self.location_embedding(locations)
+        loc_embeds = self.location_embedding(locations[..., 0])
 
         # Concatenate features with location embeddings
         x_rnn = torch.cat([x, loc_embeds], dim=-1)  # (batch, time, feature_dim + 4)
