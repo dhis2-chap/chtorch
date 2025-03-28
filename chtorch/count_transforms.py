@@ -6,9 +6,10 @@ import torch as xp
 from matplotlib import pyplot as plt
 import plotly.express as px
 
+
 class CountTransform(ABC):
 
-    def __init__(self, np_backend = None):
+    def __init__(self, np_backend=None):
         self.xp = np_backend
         if np_backend is None:
             self.xp = xp
@@ -30,7 +31,9 @@ class CountTransform(ABC):
         print(np.histogram(transformed))
         px.histogram(x=transformed, title=f"Transformed values for {self.__class__.__name__}").show()
         px.histogram(x=returned, title=f"Returned values for {self.__class__.__name__}").show()
-        px.scatter(x=data, y=returned, title=f"Correlation between original and returned values for {self.__class__.__name__}").show()
+        px.scatter(x=data, y=returned,
+                   title=f"Correlation between original and returned values for {self.__class__.__name__}").show()
+
 
 class Log1pTransform(CountTransform):
     def forward(self, numerator: float, denominator: float) -> float:

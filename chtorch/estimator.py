@@ -141,8 +141,8 @@ class Estimator:
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         self.last_val_loss = lightning_module.last_validation_loss
-        print('####################', float(self.last_val_loss))
-        return Predictor(module, self.tensorifier, transformer, self.context_length, self.prediction_length,
+        return Predictor(module, self.tensorifier, transformer,
+                         self.context_length, self.prediction_length,
                          self.count_transform)
 
 

@@ -23,7 +23,8 @@ class MLP(nn.Module):
 
 
 class RNNWithLocationEmbedding(nn.Module):
-    def __init__(self, num_locations, input_feature_dim, hidden_dim, rnn_type='GRU', prediction_length=3, embed_dim=4, num_rnn_layers=1, n_layers=1):
+    def __init__(self, num_locations, input_feature_dim, hidden_dim, rnn_type='GRU',
+                 prediction_length=3, embed_dim=4, num_rnn_layers=1, n_layers=1):
         super().__init__()
         self.location_embedding = nn.Embedding(num_locations, embed_dim)  # Embedding layer
         init_dim = input_feature_dim + embed_dim

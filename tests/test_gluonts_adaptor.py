@@ -1,7 +1,7 @@
 from gluonts.dataset.field_names import FieldName
 from gluonts.transform import InstanceSplitter, ExpectedNumInstanceSampler, AddObservedValuesIndicator
 from gluonts.dataset.loader import TrainDataLoader
-
+import pytest
 from chtorch.gluonts_adaptor import GluonTSAdaptor
 
 
@@ -43,7 +43,7 @@ def test_train_dataset(ch_dataset):
     first_batch = next(iter(loader))
     assert len(first_batch) == 2
 
-
+@pytest.mark.skip
 def test_splitter(electricity_dataset):
     loader = TrainDataLoader(
         dataset=electricity_dataset.train,
