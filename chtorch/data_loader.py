@@ -8,7 +8,7 @@ from pytorch_forecasting import TimeSeriesDataSet
 
 
 class TSDataSet(torch.utils.data.Dataset):
-    def __init__(self, X, y, population, context_length, prediction_length):
+    def __init__(self, X, y, population, context_length, prediction_length, parents=None):
         if y is not None:
             assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         self.X = X  # time, location, feature
@@ -20,6 +20,7 @@ class TSDataSet(torch.utils.data.Dataset):
         n_locations = X.shape[1]
         self.locations = np.array([np.arange(n_locations) for _ in range(context_length)])[..., None]
         self.n_locations = n_locations
+        self.parents = parents
 
     def __len__(self):
         return len(self.X) - self.total_length + 1

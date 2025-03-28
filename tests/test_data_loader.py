@@ -13,7 +13,7 @@ def test_data_loader():
 @pytest.fixture
 def flat_dataset(ch_dataset):
     tensorifier = Tensorifier(['rainfall', 'mean_temperature'], Log1pTransform())
-    X, population = tensorifier.convert(ch_dataset)
+    X, population, *_ = tensorifier.convert(ch_dataset)
     y = np.array([series.disease_cases for series in ch_dataset.values()]).T
     dataset = FlatTSDataSet(X, y, population, 12, 3)
     return dataset
@@ -22,7 +22,7 @@ def flat_dataset(ch_dataset):
 @pytest.fixture()
 def ts_dataset(ch_dataset):
     tensorifier = Tensorifier(['rainfall', 'mean_temperature'], Log1pTransform())
-    X, population = tensorifier.convert(ch_dataset)
+    X, population, *_ = tensorifier.convert(ch_dataset)
     y = np.array([series.disease_cases for series in ch_dataset.values()]).T
     dataset = TSDataSet(X, y, population, 12, 3)
     return dataset

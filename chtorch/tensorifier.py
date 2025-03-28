@@ -61,7 +61,6 @@ class Tensorifier:
         self.count_transform.__class__(np).plot_correlation(y, population)
 
     def convert(self, data: DataSet) -> np.ndarray:
-        # self._debug_plot(data)
         matrices = []
         populations = []
         for name, value in data.items():
@@ -69,20 +68,13 @@ class Tensorifier:
             m, pop = self._convert_for_location(value)
             matrices.append(m)
             populations.append(pop)
-
+        parent_dict = data.get_parent_dict()
+        parents = set(parent_dict.values())
+        lookup_dict = {k: i for i, k in enumerate(parents)}
+        parent_codes = np.array([lookup_dict[parent_dict[name]] for name in data.keys()])
         matrices = np.array(matrices)
         populations = np.array(populations)
-        return matrices.swapaxes(0, 1), populations.T
-
-    def to_pydantic(self, data: DataSet) -> TensorOutput:
-        df = data.to_pandas()
-        return concatenate_pydantic([self._pydantic_for_location(group) for _, group in df.groupby("location")])
-
-    def _pydantic_for_location(self, location_data: pd.DataFrame) -> TensorOutput:
-        X = self._convert_for_location(location_data)
-        y = location_data["disease_cases"].values
-        ar = ar_transorm(y)
-        static_categoricals = np.array([location_data.location] * len(y))
+        return matrices.swapaxes(0, 1), populations.T, parent_codes
 
     def _convert_for_location(self, location_data: TimeSeriesData):
         feature_columns = [getattr(location_data, feature) for feature in self.features]

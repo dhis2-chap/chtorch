@@ -40,11 +40,11 @@ class Predictor:
         self.count_transform = count_transform
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
-        historic_tensor, population = self.tensorifier.convert(historic_data)
+        historic_tensor, population, parents = self.tensorifier.convert(historic_data)
         tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
         historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
         _DataSet = TSDataSet if not self.is_flat else FlatTSDataSet
-        ts_dataset = _DataSet(historic_tensor, None, population, self.context_length, self.prediction_length)
+        ts_dataset = _DataSet(historic_tensor, None, population, self.context_length, self.prediction_length, parents)
         *instance, population = ts_dataset.last_prediction_instance()
         with torch.no_grad():
             eta = self.module(*instance)
@@ -108,7 +108,7 @@ class Estimator:
             self.max_epochs = 2500 // self.context_length
 
     def train(self, data: DataSet):
-        array_dataset, population = self.tensorifier.convert(data)
+        array_dataset, population, parents = self.tensorifier.convert(data)
         n_locations = array_dataset.shape[1]
         transformer = StandardScaler()
         transformed_dataset = transformer.fit_transform(array_dataset.reshape(-1, array_dataset.shape[-1]))
@@ -116,7 +116,7 @@ class Estimator:
         y = np.array([series.disease_cases for series in data.values()]).T
 
         DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
-        train_dataset = DataSet(X, y, population, self.context_length, self.prediction_length)
+        train_dataset = DataSet(X, y, population, self.context_length, self.prediction_length, parents)
         if self.validate:
             cutoff = int(len(train_dataset) * 0.8)
             val_dataset = torch.utils.data.Subset(train_dataset, range(cutoff, len(train_dataset)))
