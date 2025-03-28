@@ -130,18 +130,21 @@ class Estimator:
         if self.validate:
             val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=True,
                                                      num_workers=3)
-
-        module = Module(n_locations, array_dataset.shape[-1],
+        n_parents = len(set(parents))
+        print(n_parents, n_locations, X.shape[-1])
+        module = Module([n_locations, n_parents], array_dataset.shape[-1],
                         hidden_dim=self.model_configuration.n_hidden,
                         prediction_length=self.prediction_length,
                         embed_dim=self.model_configuration.embed_dim,
                         num_rnn_layers=self.model_configuration.num_rnn_layers,
                         n_layers=self.model_configuration.n_layers)
+
         lightning_module = DeepARLightningModule(
             module,
             NegativeBinomialLoss(count_transform=self.count_transform))
+
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
-                            accelerator="cpu")  # "gpu" if torch.cuda.is_available() else "cpu")
+                            accelerator="cpu")
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         self.last_val_loss = lightning_module.last_validation_loss

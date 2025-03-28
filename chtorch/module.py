@@ -23,10 +23,11 @@ class MLP(nn.Module):
 
 
 class RNNWithLocationEmbedding(nn.Module):
-    def __init__(self, num_locations, input_feature_dim, hidden_dim, rnn_type='GRU',
+    def __init__(self, num_categories, input_feature_dim, hidden_dim, rnn_type='GRU',
                  prediction_length=3, embed_dim=4, num_rnn_layers=1, n_layers=1):
         super().__init__()
-        self.location_embedding = nn.Embedding(num_locations, embed_dim)  # Embedding layer
+        self.location_embeddings = nn.ModuleList([nn.Embedding(num_cat, embed_dim) for num_cat in num_categories])
+        #self.location_embedding = nn.Embedding(num_categories[0], embed_dim)  # Embedding layer
         init_dim = input_feature_dim + embed_dim
         self.hidden_dim = hidden_dim
         # self.preprocess = nn.Linear(init_dim, hidden_dim)
@@ -55,7 +56,7 @@ class RNNWithLocationEmbedding(nn.Module):
         batch_size, time_steps, num_locations, feature_dim = x.shape
 
         # Embed locations: (batch, time, location) -> (batch, time, location, 4)
-        loc_embeds = self.location_embedding(locations[...,0])
+        loc_embeds = sum(embedding(locations[...,i]) for i, embedding in enumerate(self.location_embeddings))
 
         # Concatenate features with location embeddings
         x_with_loc = torch.cat([x, loc_embeds], dim=-1)  # (batch, time, location, feature_dim + 4)
@@ -82,7 +83,7 @@ class FlatRNN(RNNWithLocationEmbedding):
         batch_size, time_steps, feature_dim = x.shape
 
         # Embed locations: (batch, time, location) -> (batch, time, location, 4)
-        loc_embeds = self.location_embedding(locations[..., 0])
+        loc_embeds = sum(embedding(locations[...,i]) for i, embedding in enumerate(self.location_embeddings))
 
         # Concatenate features with location embeddings
         x_rnn = torch.cat([x, loc_embeds], dim=-1)  # (batch, time, feature_dim + 4)
@@ -157,7 +158,7 @@ def main():
     locations = torch.randint(0, num_locations_total, (batch_size, time_steps, num_locations))
 
     # Initialize model
-    model = RNNWithLocationEmbedding(num_locations_total, feature_dim, hidden_dim)
+    model = RNNWithLocationEmbedding([num_locations_total], feature_dim, hidden_dim)
 
     # Forward pass
     output = model(x, locations)
