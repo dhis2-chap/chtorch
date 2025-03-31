@@ -70,9 +70,9 @@ def evaluate(dataset_path: str,
         model_configuration = cfg
     model_template = TorchModelTemplate(p_cfg)
     estimator = model_template.get_model(model_configuration)
-    predictions_list = backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
+    predictions_list = list(backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
                                 n_test_sets=n_test_sets, stride=1,
-                                weather_provider=QuickForecastFetcher)
+                                weather_provider=QuickForecastFetcher))
     name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
     name_lookup = {id: f'{t[0]}' for id, t in name_lookup.items()}
     response = samples_to_evaluation_response(
@@ -83,6 +83,8 @@ def evaluate(dataset_path: str,
         evaluation_entry.orgUnit = name_lookup[evaluation_entry.orgUnit]
     for real_case in response.actualCases.data:
         real_case.ou = name_lookup[real_case.ou]
+    do_aggregate = True
+
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     hash = get_commit_hash()
     run_id = f'{timestamp}_{hash}'
@@ -92,6 +94,19 @@ def evaluate(dataset_path: str,
     with open(f'{filename}.params.json', 'w') as f:
         f.write(model_configuration.json())
     logger.info(f'Evaluation results saved to {filename}')
+    if do_aggregate:
+        a_dataset = dataset.aggregate_to_parent()
+        new_list = []
+        for p in predictions_list:
+            p.set_polygons(dataset.polygons)
+            new_list.append(p.aggregate_to_parent(field_name='samples'))
+        a_predictions_list = new_list
+        a_response = samples_to_evaluation_response(
+            a_predictions_list,
+            quantiles=[0.05, 0.25, 0.5, 0.75, 0.95],
+            real_data=dataset_to_datalist(a_dataset, 'dengue'))
+        with open(f'{stem}_evaluation_aggregated_{run_id}.json', 'w') as f:
+            f.write(a_response.json())
 
 
 def main():

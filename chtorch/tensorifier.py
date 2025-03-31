@@ -64,7 +64,6 @@ class Tensorifier:
         matrices = []
         populations = []
         for name, value in data.items():
-            logger.info(f"Converting {name}")
             m, pop = self._convert_for_location(value)
             matrices.append(m)
             populations.append(pop)
