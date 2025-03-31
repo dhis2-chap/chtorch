@@ -46,7 +46,9 @@ def evaluate(dataset_path: str,
              frequency: Literal['M', 'W'] = 'M',
              remove_last_year: bool = True,
              cfg: ModelConfiguration = ModelConfiguration(),
-             p_cfg: ProblemConfiguration = ProblemConfiguration()):
+             p_cfg: ProblemConfiguration = ProblemConfiguration(),
+             cfg_path: Optional[Path] = None,
+             ):
     '''
     This function should just be type hinted with common types,
     and it will run as a command line function
@@ -62,7 +64,10 @@ def evaluate(dataset_path: str,
     if remove_last_year:
         dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
     validate_dataset(dataset, lag=12)
-    model_configuration = cfg
+    if cfg_path:
+        model_configuration = ModelConfiguration.parse_file(cfg_path)
+    else:
+        model_configuration = cfg
     model_template = TorchModelTemplate(p_cfg)
     estimator = model_template.get_model(model_configuration)
     predictions_list = backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,

@@ -83,6 +83,7 @@ model_config = ModelConfiguration(weight_decay=1e-6,
                                   context_length=12,
                                   embed_dim=2,
                                   num_rnn_layers=1, n_layers=0)
+
 with open('model_config.json', 'w') as f:
     model_config.model_dump()
 
