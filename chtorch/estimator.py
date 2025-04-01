@@ -160,7 +160,7 @@ class Estimator:
                          self.count_transform)
 
 
-def test():
-    dataset = DataSet.from_csv('/home/knut/Data/ch_data/rwanda_harmonized.csv', FullData)
-    estimator = Estimator(context_length=12, prediction_length=3, validate=True)
-    predictor = estimator.train(dataset)
+# def test():
+    # dataset = DataSet.from_csv('/home/knut/Data/ch_data/rwanda_harmonized.csv', FullData)
+    # estimator = Estimator(context_length=12, prediction_length=3, validate=True)
+    # predictor = estimator.train(dataset)
