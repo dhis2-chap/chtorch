@@ -1,8 +1,9 @@
 import optuna 
 import torch 
+import json
 
 from itertools import product
-from chtorch.estimator import Estimator 
+from chtorch.estimator import Estimator, ProblemConfiguration, ModelConfiguration
 
 from chap_core.data import DataSet
 from chap_core.datatypes import FullData
@@ -10,57 +11,89 @@ from chap_core.datatypes import FullData
 def main():
     # using grid search
     param_grid = {
-        "hidden_dim": [4, 8, 16, 32],
+        "weight_decay": [4, 8, 16, 32],
+        "n_hidden": [4, 8, 16, 32],
+        "max_epochs": [2, 3],
+        "context_length": [7, 10, 12, 15, 20],
         "embed_dim": [2, 4, 8],
-        "regularization": [1e-6, 1e-5, 1e-4]
+        "num_rnn_layers": [4, 8, 16, 32],
+        "n_layers": [4, 8, 16, 32]
+    }
+
+    param_grid = {
+        "weight_decay": [4],
+        "n_hidden": [4],
+        "max_epochs": [2],
+        "context_length": [7],
+        "embed_dim": [2],
+        "num_rnn_layers": [4],
+        "n_layers": [4]
     }
 
     best_loss = float("inf")
-    best_params = {}
-    for hd, ed, reg in product(param_grid["hidden_dim"],
-                            param_grid["embed_dim"],
-                            param_grid["regularization"]):
-        estimator = Estimator(context_length=12, prediction_length=3, debug=False, validate=True)
-        estimator.hidden_dim = hd
-        estimator.embed_dim = ed 
-        estimator.weight_decay = reg 
+    best_model = None
+    
+    for wd, nh, me, cl, ed, nrl, nl in product(param_grid["weight_decay"],
+                                               param_grid["n_hidden"],
+                                               param_grid["max_epochs"],
+                                               param_grid["context_length"],
+                                               param_grid["embed_dim"],
+                                               param_grid["num_rnn_layers"],
+                                               param_grid["n_layers"]):
+        prob_config = ProblemConfiguration(replace_zeros=True)
+        model_config = ModelConfiguration(weight_decay=wd, 
+                                          n_hidden=nh, 
+                                          max_epochs=me, 
+                                          context_length=cl, 
+                                          embed_dim=ed, 
+                                          num_rnn_layers=nrl, 
+                                          n_layers=nl)
+        estimator = Estimator(prob_config, model_config, validate=True)
 
-        path = input("Dataset path: ")
-        # dataset = DataSet.from_csv('/home/knut/Data/ch_data/rwanda_harmonized.csv', FullData)
-        dataset = DataSet.from_csv(path, FullData)
         estimator.train(dataset)
         val_loss = estimator.last_val_loss # if val_loss is hooked to estimator.train 
 
         if val_loss < best_loss:
             best_loss = val_loss 
-            best_params = {"hidden_dim": hd, "embed_dim": ed, "regularization": reg}
+            best_model = model_config
 
-        print("Best loss:", best_loss)
-        print("Best params:", best_params)
+        print("Best loss so far:", best_loss)
+    
+    with open('model_config_grid.json', 'w') as f:
+        json.dump(best_model.model_dump(), f, indent=4)
 
 # using optuna
 def objective(trial):
-    hidden_dim = trial.suggest_categorical("hidden_dim", [4, 8, 16, 32])
-    embed_dim = trial.suggest_categorical("embed_dim", [2, 4, 8])
-    weight_decay = trial.suggest_loguniform("regularization", 1e-8, 1e-3)
+    wd = trial.suggest_loguniform("weight_decay", 1e-8, 1e-3)
+    nh = trial.suggest_categorical("n_hidden", [4, 8, 16, 32])
+    me = trial.suggest_categorical("max_epochs", [2, 3])
+    cl = trial.suggest_categorical("context_length", [7, 10, 12, 15, 20])
+    ed = trial.suggest_categorical("embed_dim", [2, 4, 8])
+    nrl = trial.suggest_categorical("num_rnn_layers", [4, 8, 16, 32])
+    nl = trial.suggest_categorical("n_layers", [4, 8, 16, 32])
 
-    estimator = Estimator(context_length=12, prediction_length=3, debug=False, validate=True)
-    estimator.hidden_dim = hidden_dim
-    estimator.embed_dim = embed_dim 
-    estimator.weight_decay = weight_decay
+    prob_config = ProblemConfiguration(replace_zeros=True)
+    model_config = ModelConfiguration(weight_decay=wd, 
+                                      n_hidden=nh, 
+                                      max_epochs=me, 
+                                      context_length=cl, 
+                                      embed_dim=ed, 
+                                      num_rnn_layers=nrl, 
+                                      n_layers=nl)
+    estimator = Estimator(prob_config, model_config, validate=True)
 
-    path = input("Dataset path: ")
-    dataset = DataSet.from_csv(path, FullData)
     predictor = estimator.train(dataset)
-
-    val_loss = estimator.final_val_loss
+    val_loss = estimator.last_val_loss
 
     return val_loss 
 
 if __name__ == "__main__":
+    path = input("Dataset path: ")
+    dataset = DataSet.from_csv(path, FullData)
+
     main()
     study = optuna.create_study(direction="minimize")
-    # study.optimize(objective, n_trials=20)
+    study.optimize(objective, n_trials=3)
 
     print("Number of finished trials: ", len(study.trials))
     print("Best trial:")
@@ -69,3 +102,8 @@ if __name__ == "__main__":
     print("  Params:")
     for key, value in best_trial.params.items():
         print(f"  {key}: {value}")
+    
+    best_model_config = ModelConfiguration(**best_trial.params)
+    with open('model_config_optuna.json', 'w') as f:
+        json.dump(best_model_config.model_dump(), f, indent=4)
+    

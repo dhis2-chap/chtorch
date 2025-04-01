@@ -1,0 +1,9 @@
+{
+    "weight_decay": 4.0,
+    "n_hidden": 4,
+    "max_epochs": 2,
+    "context_length": 7,
+    "embed_dim": 2,
+    "num_rnn_layers": 4,
+    "n_layers": 4
+}

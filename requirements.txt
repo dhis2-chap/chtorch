@@ -7,3 +7,5 @@ lightning~=2.5.0.post0
 scikit-learn~=1.6.1
 scipy~=1.15.1
 setuptools~=75.2.0
+
+cyclopts~=3.1.5
