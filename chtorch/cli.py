@@ -68,7 +68,7 @@ def evaluate(dataset_path: str,
     and it will run as a command line function
     Simple function
 
-    >>> main_function()
+    >>> main_function()nnn
     '''
     dataset = DataSet.from_csv(dataset_path, FullData)
     n_test_sets = 3 if frequency == 'M' else 26

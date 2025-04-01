@@ -32,4 +32,22 @@ class DeepARLightningModule(L.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=1e-3, weight_decay=self.weight_decay)
+        decay = []
+        no_decay = []
+        for name, param in self.named_parameters():
+            if not param.requires_grad:
+                continue
+            if name.endswith("bias") or "norm" in name.lower():
+                no_decay.append(param)
+            else:
+                decay.append(param)
+
+        return optim.AdamW([
+            {"params": decay, "weight_decay": self.weight_decay},
+            {"params": no_decay, "weight_decay": 0.0}
+        ], lr=1e-3)
+        #
+        #
+        # return optim.AdamW(self.parameters(),
+        #                    lr=1e-3,
+        #                    weight_decay=self.weight_decay)
