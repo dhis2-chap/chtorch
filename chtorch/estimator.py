@@ -11,7 +11,7 @@ from sklearn.preprocessing import StandardScaler
 from pydantic import BaseModel
 from chtorch.count_transforms import Log1pTransform
 from chtorch.data_loader import TSDataSet, FlatTSDataSet
-from chtorch.module import RNNWithLocationEmbedding, FlatRNN
+from chtorch.module import RNNWithLocationEmbedding, FlatRNN, RNNConfiguration
 from chtorch.tensorifier import Tensorifier
 import lightning as L
 
@@ -63,15 +63,15 @@ class Predictor:
         return DataSet(output)
 
 
-class ModelConfiguration(BaseModel):
+class ModelConfiguration(RNNConfiguration):
     weight_decay: float = 1e-6
-    n_hidden: int = 4
+    #n_hidden: int = 4
     max_epochs: int | None = None
     context_length: int = 12
-    embed_dim: int = 2
-    num_rnn_layers: int = 1
-    n_layers: int = 0
-    embedding_type: Literal['sum', 'concat'] = 'concat'
+    #embed_dim: int = 2
+    #num_rnn_layers: int = 1
+    #n_layers: int = 0
+    # embedding_type: Literal['sum', 'concat'] = 'concat'
 
 
 class ProblemConfiguration(BaseModel):
@@ -86,7 +86,6 @@ model_config = ModelConfiguration(weight_decay=1e-6,
                                   embed_dim=2,
                                   num_rnn_layers=1,
                                   n_layers=0)
-
 
 with open('model_config.json', 'w') as f:
     model_config.model_dump()
@@ -138,12 +137,13 @@ class Estimator:
         n_parents = len(set(parents))
         print(n_parents, n_locations, X.shape[-1])
         module = Module([n_locations, n_parents], array_dataset.shape[-1],
-                        hidden_dim=self.model_configuration.n_hidden,
                         prediction_length=self.prediction_length,
-                        embed_dim=self.model_configuration.embed_dim,
-                        num_rnn_layers=self.model_configuration.num_rnn_layers,
-                        n_layers=self.model_configuration.n_layers,
-                        embedding_type=self.model_configuration.embedding_type)
+                        cfg=RNNConfiguration(
+                            hidden_dim=self.model_configuration.n_hidden,
+                            embed_dim=self.model_configuration.embed_dim,
+                            num_rnn_layers=self.model_configuration.num_rnn_layers,
+                            n_layers=self.model_configuration.n_layers,
+                            embedding_type=self.model_configuration.embedding_type))
 
         lightning_module = DeepARLightningModule(
             module,

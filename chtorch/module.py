@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from typing import Literal
 
+from pydantic import BaseModel
+
 
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, n_layers):
@@ -23,41 +25,45 @@ class MLP(nn.Module):
         return x
 
 
+class RNNConfiguration(BaseModel):
+    rnn_type: Literal['GRU', 'LSTM'] = 'GRU'
+    embed_dim: int = 4
+    num_rnn_layers: int = 1
+    n_layers: int = 1
+    embedding_type: Literal['sum', 'concat'] = 'concat'
+    n_hidden: int = 4
+    output_embedding_dim: int = 0
+
+
 class RNNWithLocationEmbedding(nn.Module):
     def __init__(self,
                  num_categories: int,
                  input_feature_dim: int,
-                 hidden_dim: int,
-                 rnn_type='GRU',
-                 prediction_length: int = 3,
-                 embed_dim: int = 4,
-                 num_rnn_layers: int = 1,
-                 n_layers: int = 1,
-                 embedding_type: Literal['sum', 'concat'] = 'concat',
-                 ):
+                 prediction_length: int,
+                 cfg: RNNConfiguration = RNNConfiguration()):
         super().__init__()
-        if embedding_type == 'sum':
-            assert embed_dim == hidden_dim, "Embedding dimension must be equal to hidden dimension for sum embedding"
+        if cfg.embedding_type == 'sum':
+            assert cfg.embed_dim == cfg.n_hidden, "Embedding dimension must be equal to hidden dimension for sum embedding"
             init_dim = input_feature_dim
         else:
-            init_dim = input_feature_dim + embed_dim
+            init_dim = input_feature_dim + cfg.embed_dim
 
-        self.location_embeddings = nn.ModuleList([nn.Embedding(num_cat, embed_dim) for num_cat in num_categories])
-        self.hidden_dim = hidden_dim
-        self.embedding_type = embedding_type
-        self.preprocess = MLP(init_dim, hidden_dim, hidden_dim, n_layers)
-        if rnn_type == 'GRU':
-            self.rnn = nn.GRU(hidden_dim, hidden_dim, num_layers=num_rnn_layers, batch_first=True)
-        elif rnn_type == 'LSTM':
-            self.rnn = nn.LSTM(hidden_dim, hidden_dim, num_layers=num_rnn_layers, batch_first=True)
+        self.location_embeddings = nn.ModuleList([nn.Embedding(num_cat, cfg.embed_dim) for num_cat in num_categories])
+        self.hidden_dim = cfg.n_hidden
+        self.embedding_type = cfg.embedding_type
+        self.preprocess = MLP(init_dim, cfg.n_hidden, cfg.n_hidden, cfg.n_layers)
+        if cfg.rnn_type == 'GRU':
+            self.rnn = nn.GRU(cfg.n_hidden, cfg.n_hidden, num_layers=cfg.num_rnn_layers, batch_first=True)
+        elif cfg.rnn_type == 'LSTM':
+            self.rnn = nn.LSTM(cfg.n_hidden, cfg.n_hidden, num_layers=cfg.num_rnn_layers, batch_first=True)
         else:
             raise ValueError("Unsupported RNN type. Use 'GRU' or 'LSTM'.")
 
-        self.decoder = nn.GRU(1, hidden_dim, num_layers=num_rnn_layers, batch_first=True)
+        self.decoder = nn.GRU(1, cfg.n_hidden, num_layers=cfg.num_rnn_layers, batch_first=True)
         self.output_dim = 2
-        self.output_decoder = nn.Linear(hidden_dim, hidden_dim)
-        self.ouput_layer = MLP(hidden_dim, hidden_dim, self.output_dim, n_layers)
-
+        self.output_decoder = nn.Linear(cfg.n_hidden, cfg.n_hidden)
+        self.ouput_layer = MLP(cfg.n_hidden, cfg.n_hidden, self.output_dim, cfg.n_layers)
+        self.output_embedding = nn.Embedding(num_categories[0], cfg.output_embedding_dim)
         self.prediction_length = prediction_length
 
     def forward(self, x, locations):
@@ -102,6 +108,9 @@ class FlatRNN(RNNWithLocationEmbedding):
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
         dummy_input = torch.zeros(batch_size, self.prediction_length, 1)
         decoded, _ = self.decoder(dummy_input, end_state)
+        output_embedding = self.output_embedding(locations[..., 0])[..., :self.prediction_length, :]
+        print(output_embedding.shape, decoded.shape)
+        decoded = torch.cat([decoded, output_embedding], dim=-1)
         decoded = self.output_decoder(decoded)
         decoded = nn.ReLU()(decoded)
         decoded = self.ouput_layer(decoded)
