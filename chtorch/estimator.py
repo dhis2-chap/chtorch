@@ -138,12 +138,13 @@ class Estimator:
         print(n_parents, n_locations, X.shape[-1])
         module = Module([n_locations, n_parents], array_dataset.shape[-1],
                         prediction_length=self.prediction_length,
-                        cfg=RNNConfiguration(
-                            hidden_dim=self.model_configuration.n_hidden,
-                            embed_dim=self.model_configuration.embed_dim,
-                            num_rnn_layers=self.model_configuration.num_rnn_layers,
-                            n_layers=self.model_configuration.n_layers,
-                            embedding_type=self.model_configuration.embedding_type))
+                        cfg=self.model_configuration)
+                        # RNNConfiguration(
+                        #     hidden_dim=self.model_configuration.n_hidden,
+                        #     embed_dim=self.model_configuration.embed_dim,
+                        #     num_rnn_layers=self.model_configuration.num_rnn_layers,
+                        #     n_layers=self.model_configuration.n_layers,
+                        #     embedding_type=self.model_configuration.embedding_type))
 
         lightning_module = DeepARLightningModule(
             module,

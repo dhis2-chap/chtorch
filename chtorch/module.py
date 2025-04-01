@@ -1,17 +1,18 @@
 import torch
 import torch.nn as nn
 from typing import Literal
-
+import logging
 from pydantic import BaseModel
-
+logger = logging.getLogger(__name__)
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, n_layers):
+    def __init__(self, input_dim, hidden_dim, output_dim, n_layers, dropout=0.0):
         super().__init__()
         self.input_layer = nn.Linear(input_dim, hidden_dim)
         l = []
         for _ in range(n_layers - 1):
             l.append(nn.Linear(hidden_dim, hidden_dim))
+            l.append(nn.Dropout(dropout))
             l.append(nn.ReLU())
         self.hidden_layers = nn.Sequential(*l)
         self.output_layer = nn.Linear(hidden_dim, output_dim)
@@ -33,6 +34,7 @@ class RNNConfiguration(BaseModel):
     embedding_type: Literal['sum', 'concat'] = 'concat'
     n_hidden: int = 4
     output_embedding_dim: int = 0
+    dropout: float = 0.0
 
 
 class RNNWithLocationEmbedding(nn.Module):
@@ -41,6 +43,7 @@ class RNNWithLocationEmbedding(nn.Module):
                  input_feature_dim: int,
                  prediction_length: int,
                  cfg: RNNConfiguration = RNNConfiguration()):
+        logger.info(f"Creating RNN with config: {cfg}")
         super().__init__()
         if cfg.embedding_type == 'sum':
             assert cfg.embed_dim == cfg.n_hidden, "Embedding dimension must be equal to hidden dimension for sum embedding"
@@ -51,7 +54,7 @@ class RNNWithLocationEmbedding(nn.Module):
         self.location_embeddings = nn.ModuleList([nn.Embedding(num_cat, cfg.embed_dim) for num_cat in num_categories])
         self.hidden_dim = cfg.n_hidden
         self.embedding_type = cfg.embedding_type
-        self.preprocess = MLP(init_dim, cfg.n_hidden, cfg.n_hidden, cfg.n_layers)
+        self.preprocess = MLP(init_dim, cfg.n_hidden, cfg.n_hidden, cfg.n_layers, dropout=cfg.dropout)
         if cfg.rnn_type == 'GRU':
             self.rnn = nn.GRU(cfg.n_hidden, cfg.n_hidden, num_layers=cfg.num_rnn_layers, batch_first=True)
         elif cfg.rnn_type == 'LSTM':
@@ -61,8 +64,8 @@ class RNNWithLocationEmbedding(nn.Module):
 
         self.decoder = nn.GRU(1, cfg.n_hidden, num_layers=cfg.num_rnn_layers, batch_first=True)
         self.output_dim = 2
-        self.output_decoder = nn.Linear(cfg.n_hidden, cfg.n_hidden)
-        self.ouput_layer = MLP(cfg.n_hidden, cfg.n_hidden, self.output_dim, cfg.n_layers)
+        self.output_decoder = nn.Linear(cfg.n_hidden+cfg.output_embedding_dim, cfg.n_hidden)
+        self.ouput_layer = MLP(cfg.n_hidden, cfg.n_hidden, self.output_dim, cfg.n_layers, dropout=cfg.dropout)
         self.output_embedding = nn.Embedding(num_categories[0], cfg.output_embedding_dim)
         self.prediction_length = prediction_length
 
@@ -109,7 +112,6 @@ class FlatRNN(RNNWithLocationEmbedding):
         dummy_input = torch.zeros(batch_size, self.prediction_length, 1)
         decoded, _ = self.decoder(dummy_input, end_state)
         output_embedding = self.output_embedding(locations[..., 0])[..., :self.prediction_length, :]
-        print(output_embedding.shape, decoded.shape)
         decoded = torch.cat([decoded, output_embedding], dim=-1)
         decoded = self.output_decoder(decoded)
         decoded = nn.ReLU()(decoded)
