@@ -3,6 +3,8 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, Optional
+
+import numpy as np
 from chap_core.assessment.dataset_splitting import train_test_generator
 from chap_core.assessment.prediction_evaluator import evaluate_model, backtest
 from chap_core.climate_predictor import QuickForecastFetcher
@@ -25,7 +27,8 @@ app = App()
 
 @app.command()
 def validation_training(dataset_path: str, frequency: Literal['M', 'W'] = 'M',
-                        cfg: ModelConfiguration = ModelConfiguration(), p_cfg: ProblemConfiguration = ProblemConfiguration()):
+                        cfg: ModelConfiguration = ModelConfiguration(),
+                        p_cfg: ProblemConfiguration = ProblemConfiguration()):
     dataset = DataSet.from_csv(dataset_path, FullData)
     dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
     estimator = Estimator(model_configuration=cfg, problem_configuration=p_cfg, validate=True)
@@ -39,6 +42,17 @@ def get_kwargs(frequency):
 
 def get_commit_hash(path="."):
     return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=path).decode().strip()
+
+
+def smape(target, samples):
+    na_mask = np.isnan(target)
+    target = target[~na_mask]
+    if not len(target):
+        return 0
+    target = target[..., None]
+    samples = samples[~na_mask]
+    s = np.abs(samples) + np.abs(target)
+    return np.mean(np.where(s==0, 0, 2 * np.abs(samples - target) / s))
 
 
 @app.command()
@@ -58,8 +72,8 @@ def evaluate(dataset_path: str,
     '''
     dataset = DataSet.from_csv(dataset_path, FullData)
     n_test_sets = 3 if frequency == 'M' else 26
-    kwargs = get_kwargs(frequency)# | dict(max_epochs=max_epochs)
-    dataset = filter_dataset(dataset, n_test_sets+kwargs['prediction_length'])
+    kwargs = get_kwargs(frequency)  # | dict(max_epochs=max_epochs)
+    dataset = filter_dataset(dataset, n_test_sets + kwargs['prediction_length'])
     stem = Path(dataset_path).stem
     if remove_last_year:
         dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
@@ -71,8 +85,10 @@ def evaluate(dataset_path: str,
     model_template = TorchModelTemplate(p_cfg)
     estimator = model_template.get_model(model_configuration)
     predictions_list = list(backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
-                                n_test_sets=n_test_sets, stride=1,
-                                weather_provider=QuickForecastFetcher))
+                                     n_test_sets=n_test_sets, stride=1,
+                                     weather_provider=QuickForecastFetcher))
+    score = np.mean([smape(d.disease_cases, d.samples) for p in predictions_list for d in p.values()])
+    print(score)
     name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
     name_lookup = {id: f'{t[0]}' for id, t in name_lookup.items()}
     response = samples_to_evaluation_response(
@@ -93,6 +109,8 @@ def evaluate(dataset_path: str,
         f.write(response.json())
     with open(f'{filename}.params.json', 'w') as f:
         f.write(model_configuration.json())
+    with open(f'{filename}.score.txt', 'w') as f:
+        f.write(str(score))
     logger.info(f'Evaluation results saved to {filename}')
     if do_aggregate:
         a_dataset = dataset.aggregate_to_parent()

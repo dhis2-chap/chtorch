@@ -3,6 +3,7 @@ import dataclasses
 import numpy as np
 import torch
 from chap_core.data import DataSet
+from typing import Literal
 from chap_core.datatypes import FullData, Samples
 from chtorch.distribution_loss import NegativeBinomialLoss, get_dist
 from chtorch.lightning_module import DeepARLightningModule
@@ -70,6 +71,7 @@ class ModelConfiguration(BaseModel):
     embed_dim: int = 2
     num_rnn_layers: int = 1
     n_layers: int = 0
+    embedding_type: Literal['sum', 'concat'] = 'concat'
 
 
 class ProblemConfiguration(BaseModel):
@@ -82,7 +84,9 @@ model_config = ModelConfiguration(weight_decay=1e-6,
                                   max_epochs=200,
                                   context_length=12,
                                   embed_dim=2,
-                                  num_rnn_layers=1, n_layers=0)
+                                  num_rnn_layers=1,
+                                  n_layers=0)
+
 
 with open('model_config.json', 'w') as f:
     model_config.model_dump()
@@ -138,7 +142,8 @@ class Estimator:
                         prediction_length=self.prediction_length,
                         embed_dim=self.model_configuration.embed_dim,
                         num_rnn_layers=self.model_configuration.num_rnn_layers,
-                        n_layers=self.model_configuration.n_layers)
+                        n_layers=self.model_configuration.n_layers,
+                        embedding_type=self.model_configuration.embedding_type)
 
         lightning_module = DeepARLightningModule(
             module,

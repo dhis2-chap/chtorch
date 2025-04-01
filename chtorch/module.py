@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from typing import Literal
 
 
 class MLP(nn.Module):
@@ -23,18 +24,30 @@ class MLP(nn.Module):
 
 
 class RNNWithLocationEmbedding(nn.Module):
-    def __init__(self, num_categories, input_feature_dim, hidden_dim, rnn_type='GRU',
-                 prediction_length=3, embed_dim=4, num_rnn_layers=1, n_layers=1):
+    def __init__(self,
+                 num_categories: int,
+                 input_feature_dim: int,
+                 hidden_dim: int,
+                 rnn_type='GRU',
+                 prediction_length: int = 3,
+                 embed_dim: int = 4,
+                 num_rnn_layers: int = 1,
+                 n_layers: int = 1,
+                 embedding_type: Literal['sum', 'concat'] = 'concat',
+                 ):
         super().__init__()
+        if embedding_type == 'sum':
+            assert embed_dim == hidden_dim, "Embedding dimension must be equal to hidden dimension for sum embedding"
+            init_dim = input_feature_dim
+        else:
+            init_dim = input_feature_dim + embed_dim
+
         self.location_embeddings = nn.ModuleList([nn.Embedding(num_cat, embed_dim) for num_cat in num_categories])
-        #self.location_embedding = nn.Embedding(num_categories[0], embed_dim)  # Embedding layer
-        init_dim = input_feature_dim + embed_dim
         self.hidden_dim = hidden_dim
-        # self.preprocess = nn.Linear(init_dim, hidden_dim)
+        self.embedding_type = embedding_type
         self.preprocess = MLP(init_dim, hidden_dim, hidden_dim, n_layers)
-        # Define RNN (GRU or LSTM)
         if rnn_type == 'GRU':
-            self.rnn = nn.GRU(hidden_dim, hidden_dim,num_layers=num_rnn_layers, batch_first=True)
+            self.rnn = nn.GRU(hidden_dim, hidden_dim, num_layers=num_rnn_layers, batch_first=True)
         elif rnn_type == 'LSTM':
             self.rnn = nn.LSTM(hidden_dim, hidden_dim, num_layers=num_rnn_layers, batch_first=True)
         else:
@@ -44,7 +57,6 @@ class RNNWithLocationEmbedding(nn.Module):
         self.output_dim = 2
         self.output_decoder = nn.Linear(hidden_dim, hidden_dim)
         self.ouput_layer = MLP(hidden_dim, hidden_dim, self.output_dim, n_layers)
-        #nn.Linear(hidden_dim, self.output_dim)
 
         self.prediction_length = prediction_length
 
@@ -56,7 +68,7 @@ class RNNWithLocationEmbedding(nn.Module):
         batch_size, time_steps, num_locations, feature_dim = x.shape
 
         # Embed locations: (batch, time, location) -> (batch, time, location, 4)
-        loc_embeds = sum(embedding(locations[...,i]) for i, embedding in enumerate(self.location_embeddings))
+        loc_embeds = sum(embedding(locations[..., i]) for i, embedding in enumerate(self.location_embeddings))
 
         # Concatenate features with location embeddings
         x_with_loc = torch.cat([x, loc_embeds], dim=-1)  # (batch, time, location, feature_dim + 4)
@@ -79,16 +91,12 @@ class RNNWithLocationEmbedding(nn.Module):
 
 
 class FlatRNN(RNNWithLocationEmbedding):
+
     def forward(self, x, locations):
         batch_size, time_steps, feature_dim = x.shape
 
         # Embed locations: (batch, time, location) -> (batch, time, location, 4)
-        loc_embeds = sum(embedding(locations[...,i]) for i, embedding in enumerate(self.location_embeddings))
-
-        # Concatenate features with location embeddings
-        x_rnn = torch.cat([x, loc_embeds], dim=-1)  # (batch, time, feature_dim + 4)
-        x_rnn = self.preprocess(x_rnn)
-        x_rnn = nn.ReLU()(x_rnn)
+        x_rnn = self._encode(locations, x)
 
         # Pass through RNN
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
@@ -98,6 +106,17 @@ class FlatRNN(RNNWithLocationEmbedding):
         decoded = nn.ReLU()(decoded)
         decoded = self.ouput_layer(decoded)
         return decoded.reshape(batch_size, self.prediction_length, self.output_dim)
+
+    def _encode(self, locations, x):
+        loc_embeds = sum(embedding(locations[..., i]) for i, embedding in enumerate(self.location_embeddings))
+        if self.embedding_type == 'sum':
+            x_rnn = self.preprocess(x)
+            x_rnn = x_rnn + loc_embeds
+        else:
+            x_rnn = torch.cat([x, loc_embeds], dim=-1)  # (batch, time, feature_dim + 4)
+            x_rnn = self.preprocess(x_rnn)
+        x_rnn = nn.ReLU()(x_rnn)
+        return x_rnn
 
 
 class SeparatedRNNWithLocationEmbedding(nn.Module):
