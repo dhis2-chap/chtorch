@@ -112,22 +112,16 @@ class Estimator:
             self.max_epochs = 2500 // self.context_length
 
     def train(self, data: DataSet):
+        assert self.is_flat, "non-Flat model is deprecated"
         DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
-        array_dataset, population, parents = self.tensorifier.convert(data)
-        transformer = StandardScaler()
-        input_features = array_dataset.shape[-1]
-        transformed_dataset = transformer.fit_transform(array_dataset.reshape(-1, input_features))
-        X = transformed_dataset.reshape(array_dataset.shape).astype(np.float32)
-        y = np.array([series.disease_cases for series in data.values()]).T
-
-        train_dataset = DataSet(X, y, population, self.context_length, self.prediction_length, parents)
+        train_dataset, transformer = self._get_transformed_dataset(data)
         if self.validate:
             cutoff = int(len(train_dataset) * 0.8)
             val_dataset = torch.utils.data.Subset(train_dataset,
                                                   range(cutoff, len(train_dataset)))
             train_dataset = torch.utils.data.Subset(train_dataset, range(cutoff))
 
-        assert len(X) == len(y)
+
 
         batch_size = 64 if self.is_flat else 8
         loader = torch.utils.data.DataLoader(train_dataset,
@@ -159,3 +153,15 @@ class Estimator:
         return Predictor(module, self.tensorifier, transformer,
                          self.context_length, self.prediction_length,
                          self.count_transform)
+
+    def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
+        """Convert the data to a format suitable for training."""
+        array_dataset, population, parents = self.tensorifier.convert(data)
+        transformer = StandardScaler()
+        input_features = array_dataset.shape[-1]
+        transformed_dataset = transformer.fit_transform(array_dataset.reshape(-1, input_features))
+        X = transformed_dataset.reshape(array_dataset.shape).astype(np.float32)
+        y = np.array([series.disease_cases for series in data.values()]).T
+        assert len(X) == len(y)
+        train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.prediction_length, parents)
+        return train_dataset, transformer
