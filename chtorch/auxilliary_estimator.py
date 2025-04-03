@@ -1,8 +1,7 @@
-import numpy as np
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 from sklearn.preprocessing import StandardScaler
 
-from chtorch.data_loader import TSDataSet, FlatTSDataSet, MultiDataset
+from chtorch.data_loader import TSDataSet, MultiDataset
 from chtorch.estimator import Estimator
 
 

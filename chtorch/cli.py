@@ -6,7 +6,7 @@ from typing import Literal, Optional
 
 import numpy as np
 from chap_core.assessment.dataset_splitting import train_test_generator
-from chap_core.assessment.prediction_evaluator import evaluate_model, backtest
+from chap_core.assessment.prediction_evaluator import backtest
 from chap_core.climate_predictor import QuickForecastFetcher
 from chap_core.datatypes import FullData
 from chap_core.geometry import Polygons
@@ -33,7 +33,8 @@ def validation_training(dataset_path: str, frequency: Literal['M', 'W'] = 'M',
     dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
     p_cfg.validate = True
     estimator = Estimator(model_configuration=cfg, problem_configuration=p_cfg)
-    predictor = estimator.train(dataset)
+    estimator.train(dataset)
+    print(estimator.last_val_loss)
 
 
 def get_kwargs(frequency):

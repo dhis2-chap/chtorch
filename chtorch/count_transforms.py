@@ -3,7 +3,6 @@ from abc import ABC
 
 import numpy as np
 import torch as xp
-from matplotlib import pyplot as plt
 import plotly.express as px
 
 

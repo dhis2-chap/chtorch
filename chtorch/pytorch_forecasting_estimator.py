@@ -70,4 +70,4 @@ class PyTorchForecastingEstimator:
 def test():
     dataset = DataSet.from_csv('/home/knut/Data/ch_data/rwanda_harmonized.csv', FullData)
     estimator = PyTorchForecastingEstimator(context_length=12, prediction_length=3, validate=True)
-    predictor = estimator.train(dataset)
+    _ = estimator.train(dataset)

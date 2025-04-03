@@ -18,6 +18,7 @@ class SpatioTemporalModel(nn.Module):
 
         # RNN for time dimension
         rnn_class = nn.LSTM if rnn_type == "LSTM" else nn.GRU
+        X, Y = 32, 32  # Example spatial dimensions
         self.rnn = rnn_class(input_size=conv_channels * X * Y, hidden_size=rnn_hidden_size, batch_first=True)
 
         # Fully connected layer for final output

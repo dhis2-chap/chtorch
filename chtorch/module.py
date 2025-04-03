@@ -9,12 +9,12 @@ class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, n_layers, dropout=0.0):
         super().__init__()
         self.input_layer = nn.Linear(input_dim, hidden_dim)
-        l = []
+        layers = []
         for _ in range(n_layers - 1):
-            l.append(nn.Linear(hidden_dim, hidden_dim))
-            l.append(nn.Dropout(dropout))
-            l.append(nn.ReLU())
-        self.hidden_layers = nn.Sequential(*l)
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.Dropout(dropout))
+            layers.append(nn.ReLU())
+        self.hidden_layers = nn.Sequential(*layers)
         self.output_layer = nn.Linear(hidden_dim, output_dim)
         self.n_layers = n_layers
 
@@ -156,7 +156,6 @@ class SeparatedRNNWithLocationEmbedding(nn.Module):
         locations: (batch, time, location) - location indices
         """
         batch_size, time_steps, num_locations, feature_dim = x.shape
-        rate = x[..., -1] - x[..., -2]
         # Embed locations: (batch, time, location) -> (batch, time, location, 4)
         loc_embeds = self.location_embedding(locations)
 
@@ -199,7 +198,7 @@ def main():
 
 
 def main_flat():
-    batch_size, time_steps, num_locations, feature_dim = 8, 10, 5, 16
+    batch_size, time_steps, _, feature_dim = 8, 10, 5, 16
     num_locations_total = 100  # Total number of location indices
     hidden_dim = 32
 

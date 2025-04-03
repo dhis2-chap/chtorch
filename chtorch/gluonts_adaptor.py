@@ -3,7 +3,6 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 from chap_core.database.dataset_tables import DataSet
-from gluonts.dataset.pandas import PandasDataset
 
 
 class GluonTsDatset:

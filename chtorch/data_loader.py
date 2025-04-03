@@ -1,10 +1,8 @@
 # import torch
 # from pytorch_forecasting import Baseline, DeepAR, TimeSeriesDataSet
-from array import ArrayType
 
 import numpy as np
 import torch
-from pytorch_forecasting import TimeSeriesDataSet
 
 
 class TSDataSet(torch.utils.data.Dataset):
@@ -65,8 +63,8 @@ class FlatTSDataSet(TSDataSet):
     def last_prediction_instance(self):
         last_population = self.population[-1:].T
         repeated_population = np.repeat(last_population, self.prediction_length, axis=1)
-        l = np.array([self.locations[0].ravel(), self.parents]).T
-        location = np.array([l for t in range(self.context_length)]).swapaxes(0, 1)
+        location_row = np.array([self.locations[0].ravel(), self.parents]).T
+        location = np.array([location_row for _ in range(self.context_length)]).swapaxes(0, 1)
         assert location.shape == (self.n_locations, self.context_length, 2), location.shape
         return (torch.from_numpy(self.X[-self.context_length:, ...].swapaxes(0, 1)),
                 torch.from_numpy(location),

@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from chap_core.data.datasets import ISIMIP_dengue_harmonized
-from chap_core.data import DataSet
 from gluonts.dataset.repository import get_dataset
 import pytest
 

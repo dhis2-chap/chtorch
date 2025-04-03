@@ -1,10 +1,8 @@
-import dataclasses
 
 import numpy as np
 import torch
 from chap_core.data import DataSet
-from typing import Literal
-from chap_core.datatypes import FullData, Samples
+from chap_core.datatypes import Samples
 from chtorch.distribution_loss import NegativeBinomialLoss, get_dist
 from chtorch.lightning_module import DeepARLightningModule
 from sklearn.preprocessing import StandardScaler

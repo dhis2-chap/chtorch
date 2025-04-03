@@ -11,10 +11,11 @@ def suggest_model_config(trial: optuna.Trial,
 
 
 def objective(trial: optuna.Trial) -> float:
-    config = suggest_model_config(trial)
-    model = MyModel(config.model)
-
-    # Train and validate using config
-    val_loss = train_and_evaluate(model, config)
-
-    return val_loss
+    ...
+    # config = suggest_model_config(trial)
+    # model = MyModel(config.model)
+    #
+    # # Train and validate using config
+    # val_loss = train_and_evaluate(model, config)
+    #
+    # return val_loss
