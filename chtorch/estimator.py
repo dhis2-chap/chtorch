@@ -65,13 +65,8 @@ class Predictor:
 
 class ModelConfiguration(RNNConfiguration):
     weight_decay: float = 1e-6
-    #n_hidden: int = 4
     max_epochs: int | None = None
     context_length: int = 12
-    #embed_dim: int = 2
-    #num_rnn_layers: int = 1
-    #n_layers: int = 0
-    # embedding_type: Literal['sum', 'concat'] = 'concat'
 
 
 class ProblemConfiguration(BaseModel):

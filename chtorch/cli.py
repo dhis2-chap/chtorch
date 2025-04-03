@@ -71,12 +71,17 @@ def evaluate(dataset_path: str,
     >>> main_function()nnn
     '''
     dataset = DataSet.from_csv(dataset_path, FullData)
+    name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
     n_test_sets = 3 if frequency == 'M' else 26
     kwargs = get_kwargs(frequency)  # | dict(max_epochs=max_epochs)
-    dataset = filter_dataset(dataset, n_test_sets + kwargs['prediction_length'])
+    unused_periods = n_test_sets + kwargs['prediction_length']
+    removed_periods = 12 if frequency == 'M' else 52
+    if remove_last_year:
+        unused_periods += removed_periods
+    dataset = filter_dataset(dataset, unused_periods)
     stem = Path(dataset_path).stem
     if remove_last_year:
-        dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
+        dataset, _ = train_test_generator(dataset, prediction_length=removed_periods, n_test_sets=1)
     validate_dataset(dataset, lag=12)
     if cfg_path:
         model_configuration = ModelConfiguration.parse_file(cfg_path)
@@ -89,7 +94,7 @@ def evaluate(dataset_path: str,
                                      weather_provider=QuickForecastFetcher))
     score = np.mean([smape(d.disease_cases, d.samples) for p in predictions_list for d in p.values()])
     print(score)
-    name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
+
     name_lookup = {id: f'{t[0]}' for id, t in name_lookup.items()}
     response = samples_to_evaluation_response(
         predictions_list,

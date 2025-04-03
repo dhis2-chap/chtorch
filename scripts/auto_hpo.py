@@ -1,14 +1,9 @@
-from functools import partial
-
-import optuna
-import torch
 import json
 
 from itertools import product
 from chtorch.estimator import Estimator, ProblemConfiguration, ModelConfiguration
 
-from chap_core.data import DataSet
-from chap_core.datatypes import FullData
+from chtorch.hpo import optuna_search
 
 
 def main(dataset):
@@ -67,47 +62,6 @@ def main(dataset):
 
 
 # using optuna
-def objective(trial, dataset):
-    wd = trial.suggest_loguniform("weight_decay", 1e-8, 1e-3)
-    nh = trial.suggest_categorical("n_hidden", [4, 8, 16, 32])
-    me = trial.suggest_categorical("max_epochs", [2, 3])
-    cl = trial.suggest_categorical("context_length", [7, 10, 12, 15, 20])
-    ed = trial.suggest_categorical("embed_dim", [2, 4, 8])
-    nrl = trial.suggest_categorical("num_rnn_layers", [4, 8, 16, 32])
-    nl = trial.suggest_categorical("n_layers", [4, 8, 16, 32])
-
-    prob_config = ProblemConfiguration(replace_zeros=True)
-    model_config = ModelConfiguration(weight_decay=wd,
-                                      n_hidden=nh,
-                                      max_epochs=me,
-                                      context_length=cl,
-                                      embed_dim=ed,
-                                      num_rnn_layers=nrl,
-                                      n_layers=nl)
-    estimator = Estimator(prob_config, model_config, validate=True)
-
-    predictor = estimator.train(dataset)
-    val_loss = estimator.last_val_loss
-
-    return val_loss
-
-def optuna_search(path, n_trials, output_name):
-    dataset = DataSet.from_csv(path, FullData)
-    study = optuna.create_study(direction="minimize")
-    study.optimize(partial(objective, dataset=dataset), n_trials=n_trials)
-
-    print("Number of finished trials: ", len(study.trials))
-    print("Best trial:")
-    best_trial = study.best_trial
-    print("  Loss value: ", best_trial.value)
-    print("  Params:")
-    for key, value in best_trial.params.items():
-        print(f"  {key}: {value}")
-
-    best_model_config = ModelConfiguration(**best_trial.params)
-
-    with open(output_name, 'w') as f:
-        json.dump(best_model_config.model_dump(), f, indent=4)
 
 if __name__ == "__main__":
     #path = input("Dataset path: ")
