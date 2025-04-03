@@ -78,14 +78,28 @@ class MultiDataset(torch.utils.data.Dataset):
         self.datasets = datasets
         self.n_datasets = len(datasets)
         lens = [len(dataset) for dataset in datasets]
+
         self.cumulative_lens = np.cumsum(lens)
+        self._category_offsets = np.cumsum([0] + [dataset.n_categories[0] for dataset in datasets])
         self._len = sum(lens)
+
+    @property
+    def n_categories(self):
+        return [self._category_offsets[-1], self.n_datasets]
+
+    @property
+    def n_features(self):
+        return self.datasets[0].n_features
 
     def __len__(self):
         return self._len
 
     def __getitem__(self, item):
         dataset_idx, new_idx = self._split_index(item)
+        x, locations, y, population= self.datasets[dataset_idx][new_idx]
+        locations  = locations.copy()
+        locations[:, 0] += self._category_offsets[dataset_idx]
+        locations[:, 1] = dataset_idx
         return self.datasets[dataset_idx][new_idx]
 
     def _split_index(self, item):

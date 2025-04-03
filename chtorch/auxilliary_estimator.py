@@ -1,5 +1,8 @@
+import numpy as np
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
+from sklearn.preprocessing import StandardScaler
 
+from chtorch.data_loader import TSDataSet, FlatTSDataSet, MultiDataset
 from chtorch.estimator import Estimator
 
 
@@ -8,4 +11,10 @@ class AuxilliaryEstimator(Estimator):
         super().__init__(model_configuration=model_configuration, problem_configuration=problem_configuration)
         self._auxilliary_datasets = auxilliary_datasets
 
-
+    def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
+        """Convert the data to a format suitable for training."""
+        datasets = [self._get_single_transformed_dataset(dataset)[0]
+                    for dataset in self._auxilliary_datasets.values()]
+        main_dataset, transformer = super()._get_transformed_dataset(data)
+        datasets = [main_dataset] + datasets
+        return MultiDataset(datasets), transformer

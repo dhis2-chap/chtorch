@@ -156,6 +156,9 @@ class Estimator:
 
     def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
         """Convert the data to a format suitable for training."""
+        return self._get_single_transformed_dataset(data)
+
+    def _get_single_transformed_dataset(self, data):
         array_dataset, population, parents = self.tensorifier.convert(data)
         transformer = StandardScaler()
         input_features = array_dataset.shape[-1]

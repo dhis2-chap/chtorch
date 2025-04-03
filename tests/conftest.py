@@ -23,7 +23,6 @@ def data_path():
 
 @pytest.fixture
 def auxilliary_datasets(data_path):
-    print(ISIMIP_dengue_harmonized.items())
     return {
         country_name: ISIMIP_dengue_harmonized[country_name]
-        for country_name in ['vietnam']}
+        for country_name in ['brazil', 'thailand']}

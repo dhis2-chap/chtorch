@@ -42,7 +42,7 @@ class DeepARLightningModule(L.LightningModule):
             if name.endswith("bias") or "norm" in name.lower():
                 no_decay.append(param)
             elif 'embed' in name:
-                if '.1.' in name:
+                if '.0.' in name:
                     level_2_decay.append(param)
                 else:
                     embed_decay.append(param)

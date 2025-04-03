@@ -63,18 +63,19 @@ def evaluate(dataset_path: str,
              cfg: ModelConfiguration = ModelConfiguration(),
              p_cfg: ProblemConfiguration = ProblemConfiguration(),
              cfg_path: Optional[Path] = None,
+             aux: bool = False,
              ):
     '''
     This function should just be type hinted with common types,
     and it will run as a command line function
     Simple function
 
-    >>> main_function()nnn
+    >>> main_function()
     '''
     dataset = DataSet.from_csv(dataset_path, FullData)
     name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
-    n_test_sets = 3 if frequency == 'M' else 26
-    kwargs = get_kwargs(frequency)  # | dict(max_epochs=max_epochs)
+    n_test_sets = 9 if frequency == 'M' else 26
+    kwargs = get_kwargs(frequency)
     unused_periods = n_test_sets + kwargs['prediction_length']
     removed_periods = 12 if frequency == 'M' else 52
     if remove_last_year:
@@ -88,7 +89,7 @@ def evaluate(dataset_path: str,
         model_configuration = ModelConfiguration.parse_file(cfg_path)
     else:
         model_configuration = cfg
-    model_template = TorchModelTemplate(p_cfg)
+    model_template = TorchModelTemplate(p_cfg, auxilliary=aux)
     estimator = model_template.get_model(model_configuration)
     predictions_list = list(backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
                                      n_test_sets=n_test_sets, stride=1,
@@ -131,17 +132,6 @@ def evaluate(dataset_path: str,
             real_data=dataset_to_datalist(a_dataset, 'dengue'))
         with open(f'{stem}_evaluation_aggregated_{run_id}.json', 'w') as f:
             f.write(a_response.json())
-
-    def multi_training(dataset_path: str, auxilliary_dataset_folder: str, ModelConfiguration: ModelConfiguration, ProblemConfiguration: ProblemConfiguration):
-        dataset = DataSet.from_csv(dataset_path, FullData)
-        auxilliary_dataset = DataSet.from_folder(auxilliary_dataset_folder, FullData)
-        dataset = dataset.merge(auxilliary_dataset)
-        dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
-        estimator = Estimator(model_configuration=ModelConfiguration,
-                              problem_configuration=ProblemConfiguration,
-                              validate=True)
-        predictor = estimator.train(dataset)
-
 
 def main():
     app()
