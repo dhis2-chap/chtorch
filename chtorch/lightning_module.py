@@ -55,8 +55,3 @@ class DeepARLightningModule(L.LightningModule):
             {"params": level_2_decay, "weight_decay": self.weight_decay * 100},
             {"params": no_decay, "weight_decay": 0.0}
         ], lr=1e-3)
-        #
-        #
-        # return optim.AdamW(self.parameters(),
-        #                    lr=1e-3,
-        #                    weight_decay=self.weight_decay)

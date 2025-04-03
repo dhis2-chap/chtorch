@@ -67,6 +67,7 @@ class ModelConfiguration(RNNConfiguration):
     weight_decay: float = 1e-6
     max_epochs: int | None = None
     context_length: int = 12
+    use_population: bool = True
 
 
 class ProblemConfiguration(BaseModel):
@@ -81,9 +82,6 @@ model_config = ModelConfiguration(weight_decay=1e-6,
                                   embed_dim=2,
                                   num_rnn_layers=1,
                                   n_layers=0)
-
-with open('model_config.json', 'w') as f:
-    model_config.model_dump()
 
 
 class Estimator:
@@ -100,7 +98,10 @@ class Estimator:
         self.debug = debug
         self.validate = validate
         self.max_epochs = model_configuration.max_epochs
-        self.tensorifier = Tensorifier(self.features, self.count_transform, problem_configuration.replace_zeros)
+        self.tensorifier = Tensorifier(self.features,
+                                       self.count_transform,
+                                       problem_configuration.replace_zeros,
+                                       use_population=model_configuration.use_population)
         self.model_configuration = model_configuration
 
         if self.max_epochs is None:
@@ -130,16 +131,9 @@ class Estimator:
             val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=True,
                                                      num_workers=3)
         n_parents = len(set(parents))
-        print(n_parents, n_locations, X.shape[-1])
         module = Module([n_locations, n_parents], array_dataset.shape[-1],
                         prediction_length=self.prediction_length,
                         cfg=self.model_configuration)
-                        # RNNConfiguration(
-                        #     hidden_dim=self.model_configuration.n_hidden,
-                        #     embed_dim=self.model_configuration.embed_dim,
-                        #     num_rnn_layers=self.model_configuration.num_rnn_layers,
-                        #     n_layers=self.model_configuration.n_layers,
-                        #     embedding_type=self.model_configuration.embedding_type))
 
         lightning_module = DeepARLightningModule(
             module,
@@ -153,9 +147,3 @@ class Estimator:
         return Predictor(module, self.tensorifier, transformer,
                          self.context_length, self.prediction_length,
                          self.count_transform)
-
-
-# def test():
-    # dataset = DataSet.from_csv('/home/knut/Data/ch_data/rwanda_harmonized.csv', FullData)
-    # estimator = Estimator(context_length=12, prediction_length=3, validate=True)
-    # predictor = estimator.train(dataset)

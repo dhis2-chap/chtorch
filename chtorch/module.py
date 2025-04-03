@@ -162,6 +162,7 @@ class SeparatedRNNWithLocationEmbedding(nn.Module):
         # Concatenate features with location embeddings
         x_with_loc = torch.cat([x, loc_embeds], dim=-1)  # (batch, time, location, feature_dim + 4)
         x_with_loc = x_with_loc.swapaxes(1, 2)  # (batch, location, time, feature_dim + 4
+
         # Reshape for RNN: merge location into feature dimension
         x_rnn = x_with_loc.reshape(batch_size * num_locations, time_steps,
                                    -1)  # (batch, time, location * (feature_dim + 4))

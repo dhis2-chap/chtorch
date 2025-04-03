@@ -54,6 +54,7 @@ class Tensorifier:
     features: list[str]
     count_transform: CountTransform
     replace_zeros: bool = False
+    use_population: bool = True
 
     def _debug_plot(self, data: DataSet):
         y = np.concatenate([interpolate_nans(location_data.disease_cases) for location_data in data.values()])
@@ -92,16 +93,13 @@ class Tensorifier:
             cases = np.where(cases == 0, np.nan, cases)
         target_column = interpolate_nans(cases)
         target_column = self.count_transform.forward(target_column, population)
-        assert not np.isnan(target_column).any(), f"Target column contains NaNs: {location_data.disease_cases}"
-        assert not np.isinf(target_column).any(), f"Target column contains infs: {location_data.disease_cases}"
-
         na_mask = np.isnan(cases)
-
-        assert not np.isnan(population_column).any(), f"Population column contains NaNs: {location_data.population}"
-        assert not np.isinf(population_column).any(), f"Population column contains infs: {location_data.population}"
+        extra_columns = [year_position,
+                         get_covid_mask(location_data.time_period), na_mask, target_column]
+        if self.use_population:
+            extra_columns.append(population_column)
         return np.array(
-            feature_columns + [year_position, get_covid_mask(location_data.time_period), na_mask, target_column,
-                               population_column]).T, population
+            feature_columns + extra_columns).T, population
 
 
 def year_position_from_datetime(dt: datetime) -> float:

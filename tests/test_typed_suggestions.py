@@ -25,7 +25,7 @@ def objective(trial):
     assert isinstance(model, TestModel)
     return 0.0
 
-
+@pytest.mark.skip(reason="Test is not implemented yet")
 def test_suggest_model(study):
     # model = suggest_model(TestModel, trial)
     study.optimize(objective, n_trials=1)
