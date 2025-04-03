@@ -2,7 +2,8 @@ import json
 
 from itertools import product
 from chtorch.estimator import Estimator, ProblemConfiguration, ModelConfiguration
-
+import logging
+logger = logging.getLogger(__name__)
 from chtorch.hpo import optuna_search
 
 
@@ -55,7 +56,7 @@ def main(dataset):
             best_loss = val_loss
             best_model = model_config
 
-        print("Best loss so far:", best_loss)
+        logger.info(f"Best loss so far: {best_loss}")
 
     with open('model_config_grid.json', 'w') as f:
         json.dump(best_model.model_dump(), f, indent=4)

@@ -56,4 +56,3 @@ def test_last_prediction_flat(flat_dataset):
     assert X.shape == (n_location, 12, 7)
     assert location.shape == (n_location, 12, 2)
     assert population.shape == (n_location, 3)
-    print(location, population)

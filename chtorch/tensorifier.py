@@ -89,7 +89,8 @@ class Tensorifier:
         population_column = np.log(population)
         cases = location_data.disease_cases
         if self.replace_zeros:
-            cases = np.where(cases == 0, np.nan, cases)
+            zero_mask = cases == 0
+            cases = np.where(zero_mask, np.nan, cases)
         target_column = interpolate_nans(cases)
         target_column = self.count_transform.forward(target_column, population)
         na_mask = np.isnan(cases)

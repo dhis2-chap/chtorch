@@ -26,8 +26,6 @@ class CountTransform(ABC):
         denominator = denominator.ravel()
         transformed = self.forward(data, denominator)
         returned = self.inverse(transformed, denominator)
-        print(np.histogram(data))
-        print(np.histogram(transformed))
         px.histogram(x=transformed, title=f"Transformed values for {self.__class__.__name__}").show()
         px.histogram(x=returned, title=f"Returned values for {self.__class__.__name__}").show()
         px.scatter(x=data, y=returned,

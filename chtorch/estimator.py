@@ -48,7 +48,6 @@ class Predictor:
         with torch.no_grad():
             eta = self.module(*instance)
         samples = get_dist(eta, population, self.count_transform).sample((100,))
-        print(samples.shape, eta.shape, population.shape)
         output = {}
         period_range = future_data.period_range
 
@@ -98,6 +97,7 @@ class Estimator:
         self.debug = problem_configuration.debug
         self.validate = problem_configuration.validate
         self.max_epochs = model_configuration.max_epochs
+        self.problem_configuration = problem_configuration
         self.tensorifier = Tensorifier(
             self.features,
             self.count_transform,
@@ -163,6 +163,8 @@ class Estimator:
         transformed_dataset = transformer.fit_transform(array_dataset.reshape(-1, input_features))
         X = transformed_dataset.reshape(array_dataset.shape).astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
+        if self.problem_configuration.replace_zeros:
+            y = np.where(y == 0, np.nan, y)
         assert len(X) == len(y)
         train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.prediction_length, parents)
         return train_dataset, transformer

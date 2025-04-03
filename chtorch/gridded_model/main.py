@@ -74,7 +74,6 @@ def region_attribution() -> RegionAttribution:  # M, N
 # Dicts area human readable, but we need tensore to feed to the network.
 def get_grid_tensor(grid_dict: FullGriddedArray) -> GridTensor:
     array = np.array(list(grid_dict.values()))
-    print(array.shape)
     return array.transpose((1, 2, 3, 0))
 
 

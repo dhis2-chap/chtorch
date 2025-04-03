@@ -30,10 +30,11 @@ class MyModel(BaseModel):
         # x is a batch generated based on the TimeSeriesDataset, here we just use the
         # continuous variables for the encoder
         network_input = x["encoder_cont"]
-        _, hidden= self.rnn(network_input)
+        _, hidden = self.rnn(network_input)
         prediction = self.linear(hidden)
         prediction = self.transform_output(prediction, target_scale=x["target_scale"])
         return self.to_network_output(prediction=prediction)
+
 
 class PyTorchForecastingEstimator:
     features = ['mean_temperature', 'rainfall']
@@ -61,10 +62,8 @@ class PyTorchForecastingEstimator:
         data_loader = training.to_dataloader(batch_size=32, num_workers=0)
         batch = next(iter(data_loader))
         x, y = batch
-        out = model(x)
-        print(out)
+        _ = model(x)
         # e = PTFElement(**x)
-
 
 
 def test():

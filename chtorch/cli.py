@@ -34,7 +34,7 @@ def validation_training(dataset_path: str, frequency: Literal['M', 'W'] = 'M',
     p_cfg.validate = True
     estimator = Estimator(model_configuration=cfg, problem_configuration=p_cfg)
     estimator.train(dataset)
-    print(estimator.last_val_loss)
+    logger.info(estimator.last_val_loss)
 
 
 def get_kwargs(frequency):
@@ -96,8 +96,7 @@ def evaluate(dataset_path: str,
                                      n_test_sets=n_test_sets, stride=1,
                                      weather_provider=QuickForecastFetcher))
     score = np.mean([smape(d.disease_cases, d.samples) for p in predictions_list for d in p.values()])
-    print(score)
-
+    logger.info(f'SMAPE: {score}')
     name_lookup = {id: f'{t[0]}' for id, t in name_lookup.items()}
     response = samples_to_evaluation_response(
         predictions_list,

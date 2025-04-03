@@ -194,8 +194,6 @@ def main():
     # Forward pass
     output = model(x, locations)
 
-    print("Output shape:", output.shape)  # (batch, time, hidden_dim)
-
 
 def main_flat():
     batch_size, time_steps, _, feature_dim = 8, 10, 5, 16
@@ -212,7 +210,6 @@ def main_flat():
     # Forward pass
     output = model(x, locations)
 
-    print("Output shape:", output.shape)  # (batch, time, hidden_dim)
 
 
 if __name__ == '__main__':

@@ -95,7 +95,7 @@ class MultiDataset(torch.utils.data.Dataset):
     def __getitem__(self, item):
         dataset_idx, new_idx = self._split_index(item)
         x, locations, y, population= self.datasets[dataset_idx][new_idx]
-        locations  = locations.copy()
+        locations = locations.copy()
         locations[:, 0] += self._category_offsets[dataset_idx]
         locations[:, 1] = dataset_idx
         return self.datasets[dataset_idx][new_idx]

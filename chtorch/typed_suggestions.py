@@ -21,7 +21,6 @@ def suggest_model(model_class: type, trial: optuna.Trial):
     """
     suggestion_dict = {}
     for key, value in model_class.__annotations__.items():
-        print(key ,value)
         if value.__origin__ == Literal:
             suggestion_dict[key] = trial.suggest_categorical(key, value.__args__)
 

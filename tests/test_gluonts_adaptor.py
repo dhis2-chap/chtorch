@@ -8,7 +8,6 @@ from chtorch.gluonts_adaptor import GluonTSAdaptor
 def test_to_gluonts(ch_dataset):
     adapter = GluonTSAdaptor()
     for series in adapter.to_gluonts(ch_dataset):
-        print(series)
         assert 'start' in series
 
 
@@ -51,4 +50,4 @@ def test_splitter(electricity_dataset):
         batch_size=2,
         stack_fn=lambda x: x,
     )
-    print(next(iter(loader)))
+
