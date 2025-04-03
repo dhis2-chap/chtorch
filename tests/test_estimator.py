@@ -5,13 +5,16 @@ from chap_core.climate_predictor import QuickForecastFetcher
 from chtorch.auxilliary_estimator import AuxilliaryEstimator
 from chtorch.estimator import Estimator, ModelConfiguration, ProblemConfiguration
 
+
 @pytest.fixture
 def model_configuration():
     return ModelConfiguration(context_length=12)
 
+
 @pytest.fixture
 def problem_configuration():
     return ProblemConfiguration(prediction_length=3, debug=True)
+
 
 def test_estimator(ch_dataset, model_configuration, problem_configuration):
     estimator = Estimator(problem_configuration,
@@ -21,7 +24,11 @@ def test_estimator(ch_dataset, model_configuration, problem_configuration):
                    n_test_sets=3,
                    weather_provider=QuickForecastFetcher)
 
+
 def test_auxilliary_dataset(ch_dataset, auxilliary_datasets, model_configuration, problem_configuration):
-    auxilliary_estimator = AuxilliaryEstimator(model_configuration=model_configuration,
+    estimator = AuxilliaryEstimator(model_configuration=model_configuration,
                                                problem_configuration=problem_configuration,
                                                auxilliary_datasets=auxilliary_datasets)
+    evaluate_model(estimator, ch_dataset, prediction_length=3,
+                   n_test_sets=3,
+                   weather_provider=QuickForecastFetcher)

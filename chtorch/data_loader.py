@@ -22,6 +22,14 @@ class TSDataSet(torch.utils.data.Dataset):
         self.n_locations = n_locations
         self.parents = parents
 
+    @property
+    def n_categories(self):
+        return [self.n_locations, self.parents.max() + 1] if self.parents is not None else [self.n_locations, 0]
+
+    @property
+    def n_features(self):
+        return self.X.shape[-1]
+
     def __len__(self):
         return len(self.X) - self.total_length + 1
 
@@ -63,3 +71,24 @@ class FlatTSDataSet(TSDataSet):
         return (torch.from_numpy(self.X[-self.context_length:, ...].swapaxes(0, 1)),
                 torch.from_numpy(location),
                 torch.from_numpy(repeated_population))
+
+
+class MultiDataset(torch.utils.data.Dataset):
+    def __init__(self, datasets: list[torch.utils.data.Dataset]):
+        self.datasets = datasets
+        self.n_datasets = len(datasets)
+        lens = [len(dataset) for dataset in datasets]
+        self.cumulative_lens = np.cumsum(lens)
+        self._len = sum(lens)
+
+    def __len__(self):
+        return self._len
+
+    def __getitem__(self, item):
+        dataset_idx, new_idx = self._split_index(item)
+        return self.datasets[dataset_idx][new_idx]
+
+    def _split_index(self, item):
+        i = np.searchsorted(self.cumulative_lens, item, side='right')
+        j = item-self.cumulative_lens[i-1] if i > 0 else item
+        return i, j

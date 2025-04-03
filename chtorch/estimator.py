@@ -87,11 +87,12 @@ model_config = ModelConfiguration(weight_decay=1e-6,
 
 
 class Estimator:
-    features = ['rainfall', 'mean_temperature']
+    features: list[str] = ['rainfall', 'mean_temperature']
     count_transform = Log1pTransform()
     is_flat = True
 
-    def __init__(self, problem_configuration: ProblemConfiguration,
+    def __init__(self,
+                 problem_configuration: ProblemConfiguration,
                  model_configuration: ModelConfiguration):
         self.last_val_loss = None
         self.context_length = model_configuration.context_length
@@ -99,40 +100,50 @@ class Estimator:
         self.debug = problem_configuration.debug
         self.validate = problem_configuration.validate
         self.max_epochs = model_configuration.max_epochs
-        self.tensorifier = Tensorifier(self.features,
-                                       self.count_transform,
-                                       problem_configuration.replace_zeros,
-                                       use_population=model_configuration.use_population)
+        self.tensorifier = Tensorifier(
+            self.features,
+            self.count_transform,
+            problem_configuration.replace_zeros,
+            use_population=model_configuration.use_population)
+
         self.model_configuration = model_configuration
 
         if self.max_epochs is None:
             self.max_epochs = 2500 // self.context_length
 
     def train(self, data: DataSet):
+        DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
         array_dataset, population, parents = self.tensorifier.convert(data)
-        n_locations = array_dataset.shape[1]
         transformer = StandardScaler()
-        transformed_dataset = transformer.fit_transform(array_dataset.reshape(-1, array_dataset.shape[-1]))
+        input_features = array_dataset.shape[-1]
+        transformed_dataset = transformer.fit_transform(array_dataset.reshape(-1, input_features))
         X = transformed_dataset.reshape(array_dataset.shape).astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
 
-        DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
         train_dataset = DataSet(X, y, population, self.context_length, self.prediction_length, parents)
         if self.validate:
             cutoff = int(len(train_dataset) * 0.8)
-            val_dataset = torch.utils.data.Subset(train_dataset, range(cutoff, len(train_dataset)))
+            val_dataset = torch.utils.data.Subset(train_dataset,
+                                                  range(cutoff, len(train_dataset)))
             train_dataset = torch.utils.data.Subset(train_dataset, range(cutoff))
 
         assert len(X) == len(y)
 
         batch_size = 64 if self.is_flat else 8
-        loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True,
+        loader = torch.utils.data.DataLoader(train_dataset,
+                                             batch_size=batch_size,
+                                             shuffle=True,
+                                             drop_last=True,
                                              num_workers=3)
         if self.validate:
-            val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=True,
+            val_loader = torch.utils.data.DataLoader(val_dataset,
+                                                     batch_size=batch_size,
+                                                     shuffle=False,
+                                                     drop_last=True,
                                                      num_workers=3)
-        n_parents = len(set(parents))
-        module = Module([n_locations, n_parents], array_dataset.shape[-1],
+
+        module = Module(train_dataset.n_categories,
+                        train_dataset.n_features,
                         prediction_length=self.prediction_length,
                         cfg=self.model_configuration)
 
