@@ -31,7 +31,8 @@ def validation_training(dataset_path: str, frequency: Literal['M', 'W'] = 'M',
                         p_cfg: ProblemConfiguration = ProblemConfiguration()):
     dataset = DataSet.from_csv(dataset_path, FullData)
     dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
-    estimator = Estimator(model_configuration=cfg, problem_configuration=p_cfg, validate=True)
+    p_cfg.validate = True
+    estimator = Estimator(model_configuration=cfg, problem_configuration=p_cfg)
     predictor = estimator.train(dataset)
 
 
@@ -130,6 +131,16 @@ def evaluate(dataset_path: str,
             real_data=dataset_to_datalist(a_dataset, 'dengue'))
         with open(f'{stem}_evaluation_aggregated_{run_id}.json', 'w') as f:
             f.write(a_response.json())
+
+    def multi_training(dataset_path: str, auxilliary_dataset_folder: str, ModelConfiguration: ModelConfiguration, ProblemConfiguration: ProblemConfiguration):
+        dataset = DataSet.from_csv(dataset_path, FullData)
+        auxilliary_dataset = DataSet.from_folder(auxilliary_dataset_folder, FullData)
+        dataset = dataset.merge(auxilliary_dataset)
+        dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
+        estimator = Estimator(model_configuration=ModelConfiguration,
+                              problem_configuration=ProblemConfiguration,
+                              validate=True)
+        predictor = estimator.train(dataset)
 
 
 def main():

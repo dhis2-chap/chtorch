@@ -95,7 +95,9 @@ class Tensorifier:
         target_column = self.count_transform.forward(target_column, population)
         na_mask = np.isnan(cases)
         extra_columns = [year_position,
-                         get_covid_mask(location_data.time_period), na_mask, target_column]
+                         get_covid_mask(location_data.time_period),
+                         na_mask,
+                         target_column]
         if self.use_population:
             extra_columns.append(population_column)
         return np.array(

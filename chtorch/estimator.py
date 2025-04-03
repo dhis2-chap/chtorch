@@ -73,6 +73,8 @@ class ModelConfiguration(RNNConfiguration):
 class ProblemConfiguration(BaseModel):
     prediction_length: int = 3
     replace_zeros: bool = False
+    debug: bool = False
+    validate: bool = False
 
 
 model_config = ModelConfiguration(weight_decay=1e-6,
@@ -90,13 +92,12 @@ class Estimator:
     is_flat = True
 
     def __init__(self, problem_configuration: ProblemConfiguration,
-                 model_configuration: ModelConfiguration,
-                 debug=False, validate=False):
+                 model_configuration: ModelConfiguration):
         self.last_val_loss = None
         self.context_length = model_configuration.context_length
         self.prediction_length = problem_configuration.prediction_length
-        self.debug = debug
-        self.validate = validate
+        self.debug = problem_configuration.debug
+        self.validate = problem_configuration.validate
         self.max_epochs = model_configuration.max_epochs
         self.tensorifier = Tensorifier(self.features,
                                        self.count_transform,
