@@ -1,3 +1,4 @@
+import logging
 
 import numpy as np
 import torch
@@ -40,6 +41,8 @@ class Predictor:
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self.tensorifier.convert(historic_data)
+        #logging.warning('SUCH A SHITTY HACK')
+        #parents = np.zeros_like(parents)
         tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
         historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
         _DataSet = TSDataSet if not self.is_flat else FlatTSDataSet
@@ -118,9 +121,7 @@ class Estimator:
             val_dataset = torch.utils.data.Subset(train_dataset,
                                                   range(cutoff, len(train_dataset)))
             train_dataset = torch.utils.data.Subset(train_dataset, range(cutoff))
-
-
-
+        assert len(train_dataset.n_categories) == train_dataset[0][1].shape[-1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
         batch_size = 64 if self.is_flat else 8
         loader = torch.utils.data.DataLoader(train_dataset,
                                              batch_size=batch_size,
