@@ -26,5 +26,5 @@ class AuxilliaryEstimator(Estimator):
                     for dataset in self._auxilliary_datasets.values()]
         main_dataset, transformer = super()._get_transformed_dataset(data)
         datasets = [main_dataset] + datasets
-        multi_dataset = MultiDataset(datasets, main_dataset_weight=5)
+        multi_dataset = MultiDataset(datasets, main_dataset_weight=10)
         return multi_dataset, transformer

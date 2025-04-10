@@ -1,3 +1,4 @@
+import pickle
 from dataclasses import dataclass
 from datetime import datetime
 from numpydantic import NDArray
@@ -54,6 +55,17 @@ class Tensorifier:
     count_transform: CountTransform
     replace_zeros: bool = False
     use_population: bool = True
+
+    def save(self, path: str):
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+            logger.info(f"Saved tensorifier to {path}")
+
+    def load(self, path: str):
+        with open(path, 'rb') as f:
+            tensorifier = pickle.load(f)
+            logger.info(f"Loaded tensorifier from {path}")
+            return tensorifier
 
     def _debug_plot(self, data: DataSet):
         y = np.concatenate([interpolate_nans(location_data.disease_cases) for location_data in data.values()])

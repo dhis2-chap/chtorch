@@ -1,5 +1,7 @@
 import logging
+from pathlib import Path
 
+from joblib import dump, load
 import numpy as np
 import torch
 from chap_core.data import DataSet
@@ -30,7 +32,10 @@ logits = -log(mean/variance)
 class Predictor:
     is_flat = True
 
-    def __init__(self, module, tensorifier, transformer, context_length=12, prediction_length=3, count_transform=None):
+    def __init__(self, module,
+                 tensorifier: Tensorifier,
+                 transformer: StandardScaler,
+                 context_length: int = 12, prediction_length: int = 3, count_transform=None):
         super().__init__()
         self.module = module
         self.tensorifier = tensorifier
@@ -39,7 +44,18 @@ class Predictor:
         self.prediction_length = prediction_length
         self.count_transform = count_transform
 
+    def save(self, path: Path):
+        torch.save(self.module.state_dict(), path)
+        dump(self.transformer, path.with_suffix('.transformer'))
+        self.tensorifier.save(path.with_suffix('.tensorifier'))
 
+    @classmethod
+    def load(cls, path):
+        module = cls.module_class()
+        module.load_state_dict(torch.load(path))
+        transformer = load(path+'.transformer')
+        tensorifier = Tensorifier.load(path+'.tensorifier')
+        return cls(module, tensorifier, transformer)
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
@@ -155,8 +171,9 @@ class Estimator:
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         self.last_val_loss = lightning_module.last_validation_loss
         return self.predictor_cls(module, self.tensorifier, transformer,
-                         self.context_length, self.prediction_length,
-                         self.count_transform)
+                                  self.context_length, self.prediction_length,
+                                  self.count_transform)
+
 
     def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
         """Convert the data to a format suitable for training."""

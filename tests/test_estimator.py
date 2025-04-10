@@ -27,8 +27,17 @@ def test_estimator(ch_dataset, model_configuration, problem_configuration):
 
 def test_auxilliary_dataset(ch_dataset, auxilliary_datasets, model_configuration, problem_configuration):
     estimator = AuxilliaryEstimator(model_configuration=model_configuration,
-                                               problem_configuration=problem_configuration,
-                                               auxilliary_datasets=auxilliary_datasets)
+                                    problem_configuration=problem_configuration,
+                                    auxilliary_datasets=auxilliary_datasets)
     evaluate_model(estimator, ch_dataset, prediction_length=3,
                    n_test_sets=3,
                    weather_provider=QuickForecastFetcher)
+
+@pytest.mark.skip
+def test_save(train_test, tmp_path):
+    train, test = train_test
+    estimator = Estimator(ProblemConfiguration(prediction_length=3, debug=True),
+                          ModelConfiguration(context_length=12))
+    predictor = estimator.train(train)
+    predictor.save(tmp_path / 'test_model')
+    assert Path('test_model').exists()
