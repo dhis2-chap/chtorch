@@ -54,7 +54,9 @@ def smape(target, samples):
     target = target[..., None]
     samples = samples[~na_mask]
     s = np.abs(samples) + np.abs(target)
-    return np.mean(np.where(s==0, 0, 2 * np.abs(samples - target) / s))
+    return np.mean(np.where(s==0,
+                            0,
+                            2 * np.abs(samples - target) / s))
 
 
 @app.command()
@@ -65,6 +67,7 @@ def evaluate(dataset_path: str,
              p_cfg: ProblemConfiguration = ProblemConfiguration(),
              cfg_path: Optional[Path] = None,
              aux: bool = False,
+             year_fraction: float = 0.5,
              ):
     '''
     This function should just be type hinted with common types,
@@ -75,7 +78,8 @@ def evaluate(dataset_path: str,
     '''
     dataset = DataSet.from_csv(dataset_path, FullData)
     name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
-    n_test_sets = 9 if frequency == 'M' else 26
+    n_test_sets = 12 if frequency == 'M' else 52
+    n_test_sets = int(n_test_sets * year_fraction)
     kwargs = get_kwargs(frequency)
     unused_periods = n_test_sets + kwargs['prediction_length']
     removed_periods = 12 if frequency == 'M' else 52

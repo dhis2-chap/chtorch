@@ -50,7 +50,7 @@ class RNNWithLocationEmbedding(nn.Module):
             init_dim = input_feature_dim
         else:
             init_dim = input_feature_dim + cfg.embed_dim
-
+        self.num_categories = num_categories
         self.location_embeddings = nn.ModuleList([nn.Embedding(num_cat, cfg.embed_dim) for num_cat in num_categories])
         self.hidden_dim = cfg.n_hidden
         self.embedding_type = cfg.embedding_type
@@ -120,6 +120,8 @@ class FlatRNN(RNNWithLocationEmbedding):
         return decoded.reshape(batch_size, self.prediction_length, self.output_dim)
 
     def _encode(self, locations, x):
+        assert all(locations[..., i].max()<num_cat for i, num_cat in enumerate(self.num_categories)), \
+            ([locations[..., i].max() for i in range(len(self.num_categories))], self.num_categories, locations[..., -1])
         loc_embeds = sum(embedding(locations[..., i]) for i, embedding in enumerate(self.location_embeddings))
         if self.embedding_type == 'sum':
             x_rnn = self.preprocess(x)
