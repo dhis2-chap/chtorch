@@ -72,7 +72,7 @@ class FlatTSDataSet(TSDataSet):
 
 
 class MultiDataset(torch.utils.data.Dataset):
-    def __init__(self, datasets: list[torch.utils.data.Dataset]):
+    def __init__(self, datasets: list[torch.utils.data.Dataset], main_dataset_weight: int = 1):
         self.datasets = datasets
         self.n_datasets = len(datasets)
         lens = [len(dataset) for dataset in datasets]
@@ -80,6 +80,8 @@ class MultiDataset(torch.utils.data.Dataset):
         self.cumulative_lens = np.cumsum(lens)
         self._category_offsets = np.cumsum([0] + [dataset.n_categories[0] for dataset in datasets])
         self._len = sum(lens)
+        self._extra_len  = (main_dataset_weight-1) * lens[0]
+
 
     def __str__(self):
         return f"MultiDataset: {self.n_datasets} datasets, {self._len} samples, {self.n_features} features and {self.n_categories} categories. "
@@ -93,7 +95,7 @@ class MultiDataset(torch.utils.data.Dataset):
         return self.datasets[0].n_features
 
     def __len__(self):
-        return self._len
+        return self._len + self._extra_len
 
     def __getitem__(self, item):
         dataset_idx, new_idx = self._split_index(item)
@@ -106,6 +108,8 @@ class MultiDataset(torch.utils.data.Dataset):
         return x, locations, y, population
 
     def _split_index(self, item):
+        if item >= self._len:
+            return 0, (item-self._len) % len(self.datasets[0])
         i = np.searchsorted(self.cumulative_lens, item, side='right')
         j = item-self.cumulative_lens[i-1] if i > 0 else item
         return i, j

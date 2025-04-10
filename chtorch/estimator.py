@@ -39,8 +39,10 @@ class Predictor:
         self.prediction_length = prediction_length
         self.count_transform = count_transform
 
+
+
     def predict(self, historic_data: DataSet, future_data: DataSet):
-        historic_tensor, population, parents = self.tensorifier.convert(historic_data)
+        historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
         #logging.warning('SUCH A SHITTY HACK')
         #parents = np.zeros_like(parents)
         tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
@@ -61,6 +63,9 @@ class Predictor:
                 s = samples[:, i, :].T
             output[location] = Samples(period_range, s)
         return DataSet(output)
+
+    def _get_prediction_dataset(self, historic_data):
+        return self.tensorifier.convert(historic_data)
 
 
 class ModelConfiguration(RNNConfiguration):
@@ -90,7 +95,7 @@ class Estimator:
     features: list[str] = ['rainfall', 'mean_temperature']
     count_transform = Log1pTransform()
     is_flat = True
-
+    predictor_cls = Predictor
     def __init__(self,
                  problem_configuration: ProblemConfiguration,
                  model_configuration: ModelConfiguration):
@@ -149,7 +154,7 @@ class Estimator:
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         self.last_val_loss = lightning_module.last_validation_loss
-        return Predictor(module, self.tensorifier, transformer,
+        return self.predictor_cls(module, self.tensorifier, transformer,
                          self.context_length, self.prediction_length,
                          self.count_transform)
 
