@@ -16,29 +16,47 @@ from chtorch.module import RNNWithLocationEmbedding, FlatRNN, RNNConfiguration
 from chtorch.tensorifier import Tensorifier
 import lightning as L
 
-'''
-mean =  total_count*exp(logits)
-exp(logmean-logits) = total_count
+
+class ModelConfiguration(RNNConfiguration):
+    weight_decay: float = 1e-6
+    max_epochs: int | None = None
+    context_length: int = 12
+    use_population: bool = True
+    features: list[str] = ['rainfall', 'mean_temperature']
 
 
-variance = mean / sigmoid(-logits)
-sigmoid(-logits) = mean / variance
-logits = -logit(mean / variance)
-logits = -log(mean/variance)
+class ProblemConfiguration(BaseModel):
+    prediction_length: int = 3
+    replace_zeros: bool = False
+    debug: bool = False
+    validate: bool = False
 
-'''
+
+class ModelBase:
+    problem_configuration: ProblemConfiguration
+    model_configuration: ModelConfiguration
+
+    def _get_tensorifier(self):
+        return Tensorifier(
+            self.model_configuration.features,
+            Log1pTransform(),
+            self.problem_configuration.replace_zeros,
+            use_population=self.model_configuration.use_population)
 
 
-class Predictor:
+class Predictor(ModelBase):
     is_flat = True
 
     def __init__(self, module,
-                 tensorifier: Tensorifier,
+                 problem_configuration: ProblemConfiguration,
+                 model_configuration: ModelConfiguration,
                  transformer: StandardScaler,
                  context_length: int = 12, prediction_length: int = 3, count_transform=None):
         super().__init__()
+        self.problem_configuration = problem_configuration
+        self.model_configuration = model_configuration
         self.module = module
-        self.tensorifier = tensorifier
+        self.tensorifier = self._get_tensorifier()
         self.transformer = transformer
         self.context_length = context_length
         self.prediction_length = prediction_length
@@ -53,14 +71,14 @@ class Predictor:
     def load(cls, path):
         module = cls.module_class()
         module.load_state_dict(torch.load(path))
-        transformer = load(path+'.transformer')
-        tensorifier = Tensorifier.load(path+'.tensorifier')
+        transformer = load(path + '.transformer')
+        tensorifier = Tensorifier.load(path + '.tensorifier')
         return cls(module, tensorifier, transformer)
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
-        #logging.warning('SUCH A SHITTY HACK')
-        #parents = np.zeros_like(parents)
+        # logging.warning('SUCH A SHITTY HACK')
+        # parents = np.zeros_like(parents)
         tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
         historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
         _DataSet = TSDataSet if not self.is_flat else FlatTSDataSet
@@ -84,20 +102,6 @@ class Predictor:
         return self.tensorifier.convert(historic_data)
 
 
-class ModelConfiguration(RNNConfiguration):
-    weight_decay: float = 1e-6
-    max_epochs: int | None = None
-    context_length: int = 12
-    use_population: bool = True
-
-
-class ProblemConfiguration(BaseModel):
-    prediction_length: int = 3
-    replace_zeros: bool = False
-    debug: bool = False
-    validate: bool = False
-
-
 model_config = ModelConfiguration(weight_decay=1e-6,
                                   n_hidden=4,
                                   max_epochs=200,
@@ -107,14 +111,14 @@ model_config = ModelConfiguration(weight_decay=1e-6,
                                   n_layers=0)
 
 
-class Estimator:
-    features: list[str] = ['rainfall', 'mean_temperature']
-    count_transform = Log1pTransform()
+class Estimator(ModelBase):
     is_flat = True
     predictor_cls = Predictor
+
     def __init__(self,
                  problem_configuration: ProblemConfiguration,
                  model_configuration: ModelConfiguration):
+        self.count_transform = Log1pTransform()
         self.last_val_loss = None
         self.context_length = model_configuration.context_length
         self.prediction_length = problem_configuration.prediction_length
@@ -122,14 +126,8 @@ class Estimator:
         self.validate = problem_configuration.validate
         self.max_epochs = model_configuration.max_epochs
         self.problem_configuration = problem_configuration
-        self.tensorifier = Tensorifier(
-            self.features,
-            self.count_transform,
-            problem_configuration.replace_zeros,
-            use_population=model_configuration.use_population)
-
         self.model_configuration = model_configuration
-
+        self.tensorifier = self._get_tensorifier()
         if self.max_epochs is None:
             self.max_epochs = 2500 // self.context_length
 
@@ -142,7 +140,8 @@ class Estimator:
             val_dataset = torch.utils.data.Subset(train_dataset,
                                                   range(cutoff, len(train_dataset)))
             train_dataset = torch.utils.data.Subset(train_dataset, range(cutoff))
-        assert len(train_dataset.n_categories) == train_dataset[0][1].shape[-1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
+        assert len(train_dataset.n_categories) == train_dataset[0][1].shape[
+            -1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
         batch_size = 64 if self.is_flat else 8
         loader = torch.utils.data.DataLoader(train_dataset,
                                              batch_size=batch_size,
@@ -170,10 +169,12 @@ class Estimator:
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         self.last_val_loss = lightning_module.last_validation_loss
-        return self.predictor_cls(module, self.tensorifier, transformer,
+        return self.predictor_cls(module,
+                                  self.problem_configuration,
+                                  self.model_configuration,
+                                  transformer,
                                   self.context_length, self.prediction_length,
                                   self.count_transform)
-
 
     def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
         """Convert the data to a format suitable for training."""
