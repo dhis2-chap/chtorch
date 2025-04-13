@@ -4,11 +4,16 @@ from chap_core.climate_predictor import QuickForecastFetcher
 
 from chtorch.auxilliary_estimator import AuxilliaryEstimator
 from chtorch.estimator import Estimator, ModelConfiguration, ProblemConfiguration
+from chtorch.hpo import HPOConfiguration, HPOEstimator
 
 
 @pytest.fixture
 def model_configuration():
     return ModelConfiguration(context_length=12)
+
+@pytest.fixture
+def hpo_model_configuration():
+    return HPOConfiguration(context_length=12)
 
 
 @pytest.fixture
@@ -24,6 +29,12 @@ def test_estimator(ch_dataset, model_configuration, problem_configuration):
                    n_test_sets=3,
                    weather_provider=QuickForecastFetcher)
 
+def test_hpo_estimator(ch_dataset, hpo_model_configuration, problem_configuration):
+    estimator = HPOEstimator(problem_configuration, hpo_model_configuration)
+    evaluate_model(estimator, ch_dataset, prediction_length=3,
+                   n_test_sets=3,
+                   weather_provider=QuickForecastFetcher)
+
 
 def test_auxilliary_dataset(ch_dataset, auxilliary_datasets, model_configuration, problem_configuration):
     estimator = AuxilliaryEstimator(model_configuration=model_configuration,
@@ -33,11 +44,13 @@ def test_auxilliary_dataset(ch_dataset, auxilliary_datasets, model_configuration
                    n_test_sets=3,
                    weather_provider=QuickForecastFetcher)
 
-@pytest.mark.skip
+
 def test_save(train_test, tmp_path):
     train, test = train_test
     estimator = Estimator(ProblemConfiguration(prediction_length=3, debug=True),
                           ModelConfiguration(context_length=12))
     predictor = estimator.train(train)
-    predictor.save(tmp_path / 'test_model')
-    assert Path('test_model').exists()
+    out_path = tmp_path / 'test_model'
+    predictor.save(out_path)
+    predictor.load(out_path)
+    #assert out_path.exists()

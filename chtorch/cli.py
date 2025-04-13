@@ -76,20 +76,10 @@ def evaluate(dataset_path: str,
 
     >>> main_function()
     '''
-    dataset = DataSet.from_csv(dataset_path, FullData)
-    name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
-    n_test_sets = 12 if frequency == 'M' else 52
-    n_test_sets = int(n_test_sets * year_fraction)
-    kwargs = get_kwargs(frequency)
-    unused_periods = n_test_sets + kwargs['prediction_length']
-    removed_periods = 12 if frequency == 'M' else 52
-    if remove_last_year:
-        unused_periods += removed_periods
-    dataset = filter_dataset(dataset, unused_periods)
+    dataset, n_test_sets = _get_dataset(dataset_path, frequency, remove_last_year, year_fraction)
     stem = Path(dataset_path).stem
-    if remove_last_year:
-        dataset, _ = train_test_generator(dataset, prediction_length=removed_periods, n_test_sets=1)
-    validate_dataset(dataset, lag=12)
+    name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
+
     if cfg_path:
         model_configuration = ModelConfiguration.parse_file(cfg_path)
     else:
@@ -108,10 +98,9 @@ def evaluate(dataset_path: str,
         real_data=dataset_to_datalist(dataset, 'dengue'))
     for evaluation_entry in response.predictions:
         evaluation_entry.orgUnit = name_lookup[evaluation_entry.orgUnit]
-    for real_case in response.actualCases.data:
+        for real_case in response.actualCases.data:
         real_case.ou = name_lookup[real_case.ou]
     do_aggregate = True
-
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     hash = get_commit_hash()
     run_id = f'{timestamp}_{hash}'
@@ -136,6 +125,23 @@ def evaluate(dataset_path: str,
             real_data=dataset_to_datalist(a_dataset, 'dengue'))
         with open(f'{stem}_evaluation_aggregated_{run_id}.json', 'w') as f:
             f.write(a_response.json())
+
+
+def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
+    dataset = DataSet.from_csv(dataset_path, FullData)
+    n_test_sets = 12 if frequency == 'M' else 52
+    n_test_sets = int(n_test_sets * year_fraction)
+    kwargs = get_kwargs(frequency)
+    unused_periods = n_test_sets + kwargs['prediction_length']
+    removed_periods = 12 if frequency == 'M' else 52
+    if remove_last_year:
+        unused_periods += removed_periods
+    dataset = filter_dataset(dataset, unused_periods)
+    if remove_last_year:
+        dataset, _ = train_test_generator(dataset, prediction_length=removed_periods, n_test_sets=1)
+    validate_dataset(dataset, lag=12)
+    return dataset, n_test_sets
+
 
 def main():
     app()

@@ -44,36 +44,51 @@ class ModelBase:
             use_population=self.model_configuration.use_population)
 
 
+class PredictorInfo(BaseModel):
+    model_configuration: ModelConfiguration
+    problem_configuration: ProblemConfiguration
+    n_features: int
+    n_categories: list[int]
+
+
 class Predictor(ModelBase):
     is_flat = True
 
     def __init__(self, module,
-                 problem_configuration: ProblemConfiguration,
-                 model_configuration: ModelConfiguration,
-                 transformer: StandardScaler,
-                 context_length: int = 12, prediction_length: int = 3, count_transform=None):
+                 predictor_info: PredictorInfo,
+                 transformer: StandardScaler):
         super().__init__()
+        problem_configuration = predictor_info.problem_configuration
+        model_configuration = predictor_info.model_configuration
+        self._predictor_info = predictor_info
         self.problem_configuration = problem_configuration
         self.model_configuration = model_configuration
         self.module = module
         self.tensorifier = self._get_tensorifier()
         self.transformer = transformer
-        self.context_length = context_length
-        self.prediction_length = prediction_length
-        self.count_transform = count_transform
+        self.context_length = model_configuration.context_length
+        self.prediction_length = problem_configuration.prediction_length
+        self.count_transform = Log1pTransform()
 
     def save(self, path: Path):
         torch.save(self.module.state_dict(), path)
         dump(self.transformer, path.with_suffix('.transformer'))
-        self.tensorifier.save(path.with_suffix('.tensorifier'))
+        with open(path.with_suffix('.predictor_info.json'), 'w') as f:
+            f.write(self._predictor_info.model_dump_json())
 
     @classmethod
     def load(cls, path):
-        module = cls.module_class()
+        predictor_info = PredictorInfo.parse_file(path.with_suffix('.predictor_info.json'))
+        module = RNNWithLocationEmbedding(
+            num_categories=predictor_info.n_categories,
+            input_feature_dim=predictor_info.n_features,
+            prediction_length=predictor_info.problem_configuration.prediction_length,
+            cfg=predictor_info.model_configuration)
         module.load_state_dict(torch.load(path))
-        transformer = load(path + '.transformer')
-        tensorifier = Tensorifier.load(path + '.tensorifier')
-        return cls(module, tensorifier, transformer)
+        transformer = load(path.with_suffix('.transformer'))
+        return cls(module,
+                   predictor_info,
+                   transformer)
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
@@ -139,7 +154,11 @@ class Estimator(ModelBase):
             cutoff = int(len(train_dataset) * 0.8)
             val_dataset = torch.utils.data.Subset(train_dataset,
                                                   range(cutoff, len(train_dataset)))
+            n_categories = train_dataset.n_categories
+            n_features = train_dataset.n_features
             train_dataset = torch.utils.data.Subset(train_dataset, range(cutoff))
+            train_dataset.n_categories = n_categories
+            train_dataset.n_features = n_features
         assert len(train_dataset.n_categories) == train_dataset[0][1].shape[
             -1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
         batch_size = 64 if self.is_flat else 8
@@ -170,11 +189,12 @@ class Estimator(ModelBase):
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         self.last_val_loss = lightning_module.last_validation_loss
         return self.predictor_cls(module,
-                                  self.problem_configuration,
-                                  self.model_configuration,
-                                  transformer,
-                                  self.context_length, self.prediction_length,
-                                  self.count_transform)
+                                  PredictorInfo(
+                                      problem_configuration=self.problem_configuration,
+                                      model_configuration=self.model_configuration,
+                                      n_features=train_dataset.n_features,
+                                      n_categories=train_dataset.n_categories),
+                                  transformer)
 
     def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
         """Convert the data to a format suitable for training."""

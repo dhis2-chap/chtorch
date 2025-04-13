@@ -15,8 +15,11 @@ class TorchModelTemplate(ModelTemplateInterface):
 
     def get_model(self, config: ModelConfiguration):
         if self.auxilliary:
-            datasets = {country_name: ISIMIP_dengue_harmonized[country_name] for country_name in ['brazil', 'thailand', 'vietnam']}
+            datasets = {country_name: ISIMIP_dengue_harmonized[country_name] for country_name in
+                        ['brazil', 'thailand', 'vietnam']}
             return AuxilliaryEstimator(problem_configuration=self.problem_configuration,
                                        model_configuration=config, auxilliary_datasets=datasets)
         return Estimator(problem_configuration=self.problem_configuration,
                          model_configuration=config)
+
+
