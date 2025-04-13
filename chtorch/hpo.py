@@ -72,7 +72,7 @@ def tune_hyperparameters(dataset, n_trials, output_name):
 class HPOConfiguration(ModelConfiguration):
     weight_decay: tuple[float] = (1e-6, 1e-2)
     n_layers: tuple[int] = (0, 3)
-    n_trials: int = 5
+    n_trials: int = 20
 
 
 class HPOEstimator:
@@ -87,10 +87,18 @@ class HPOEstimator:
         return self.estimator_class(self._problem_configuration, model_config).train(data)
 
     def _objective_func(self, trial, dataset: DataSet):
-        wd = trial.suggest_loguniform("weight_decay", self._model_configuration.weight_decay[0],
-                                      self._model_configuration.weight_decay[1])
-        nl = trial.suggest_int("n_layers", self._model_configuration.n_layers[0], self._model_configuration.n_layers[1])
-        model_config = ModelConfiguration(**(self._model_configuration.dict() | {'weight_decay': wd, 'n_layers': nl}))
+        hidden_dim = trial.suggest_int('hidden_dim', 2, 10)
+        d = {'weight_decay': trial.suggest_float("weight_decay", self._model_configuration.weight_decay[0],
+                                                 self._model_configuration.weight_decay[1], log=True),
+             'n_layers': trial.suggest_int("n_layers", self._model_configuration.n_layers[0],
+                                           self._model_configuration.n_layers[1]),
+             'dropout': trial.suggest_float('dropout', 0.0, 0.5),
+             'output_embedding': trial.suggest_int('output_embedding', 0, 3),
+             'num_rnn_layers': trial.suggest_int('num_rnn_layers', 1, 3),
+             'n_hidden': hidden_dim,
+             'embed_dim': hidden_dim}
+
+        model_config = ModelConfiguration(**(self._model_configuration.dict() | d))
         problem_configuration = self._problem_configuration.copy()
         problem_configuration.validate = True
         estimator = Estimator(problem_configuration, model_config)
@@ -113,7 +121,7 @@ class HPOEstimator:
         logger.info("  Params:")
         for key, value in best_trial.params.items():
             logger.info(f"  {key}: {value}")
-        best_model_config = ModelConfiguration(**best_trial.params)
+        best_model_config = ModelConfiguration(**(self._model_configuration.dict() | best_trial.params))
         return best_model_config
 
 
@@ -126,4 +134,4 @@ class HPOModelTemplate(ModelTemplateInterface):
         return HPOConfiguration
 
     def get_model(self, model_configuration: ModelConfiguration = None) -> 'ConfiguredModel':
-        return HPOEstimator
+        return HPOEstimator(self.problem_configuration, model_configuration)

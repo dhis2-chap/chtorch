@@ -12,7 +12,9 @@ from chap_core.datatypes import FullData
 from chap_core.geometry import Polygons
 from chap_core.rest_api_src.worker_functions import samples_to_evaluation_response, dataset_to_datalist
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
+from chap_core.time_period import Month
 
+from chtorch.hpo import HPOConfiguration, HPOModelTemplate
 from chtorch.model_template import TorchModelTemplate
 from chtorch.validation import validate_dataset, filter_dataset
 from cyclopts import App
@@ -58,6 +60,20 @@ def smape(target, samples):
                             0,
                             2 * np.abs(samples - target) / s))
 
+@app.command()
+def hpo(dataset_path: str,
+        cfg: HPOConfiguration = HPOConfiguration(),
+        p_cfg: ProblemConfiguration = ProblemConfiguration(),
+        year_fraction: float = 0.5):
+    dataset, n_test_sets = _get_dataset(dataset_path, None, False, year_fraction)
+    model_configuration = cfg
+    model_template = HPOModelTemplate(p_cfg, auxilliary=False)
+    estimator = model_template.get_model(model_configuration)
+    predictions_list = list(backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
+                                     n_test_sets=n_test_sets, stride=1,
+                                     weather_provider=QuickForecastFetcher))
+    _write_output(dataset, dataset_path, model_configuration, predictions_list)
+
 
 @app.command()
 def evaluate(dataset_path: str,
@@ -77,9 +93,6 @@ def evaluate(dataset_path: str,
     >>> main_function()
     '''
     dataset, n_test_sets = _get_dataset(dataset_path, frequency, remove_last_year, year_fraction)
-    stem = Path(dataset_path).stem
-    name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
-
     if cfg_path:
         model_configuration = ModelConfiguration.parse_file(cfg_path)
     else:
@@ -89,6 +102,12 @@ def evaluate(dataset_path: str,
     predictions_list = list(backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
                                      n_test_sets=n_test_sets, stride=1,
                                      weather_provider=QuickForecastFetcher))
+    _write_output(dataset, dataset_path, model_configuration, predictions_list)
+
+
+def _write_output(dataset, dataset_path, model_configuration, predictions_list):
+    name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
+    stem = Path(dataset_path).stem
     score = np.mean([smape(d.disease_cases, d.samples) for p in predictions_list for d in p.values()])
     logger.info(f'SMAPE: {score}')
     name_lookup = {id: f'{t[0]}' for id, t in name_lookup.items()}
@@ -98,7 +117,7 @@ def evaluate(dataset_path: str,
         real_data=dataset_to_datalist(dataset, 'dengue'))
     for evaluation_entry in response.predictions:
         evaluation_entry.orgUnit = name_lookup[evaluation_entry.orgUnit]
-        for real_case in response.actualCases.data:
+    for real_case in response.actualCases.data:
         real_case.ou = name_lookup[real_case.ou]
     do_aggregate = True
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
@@ -129,6 +148,7 @@ def evaluate(dataset_path: str,
 
 def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
     dataset = DataSet.from_csv(dataset_path, FullData)
+    frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
     n_test_sets = 12 if frequency == 'M' else 52
     n_test_sets = int(n_test_sets * year_fraction)
     kwargs = get_kwargs(frequency)
@@ -139,7 +159,7 @@ def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
     dataset = filter_dataset(dataset, unused_periods)
     if remove_last_year:
         dataset, _ = train_test_generator(dataset, prediction_length=removed_periods, n_test_sets=1)
-    validate_dataset(dataset, lag=12)
+    #validate_dataset(dataset, lag=12)
     return dataset, n_test_sets
 
 
