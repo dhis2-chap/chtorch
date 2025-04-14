@@ -1,5 +1,6 @@
 import json
 from functools import partial
+from pathlib import Path
 
 import optuna
 from chap_core import ModelTemplateInterface
@@ -72,6 +73,7 @@ def tune_hyperparameters(dataset, n_trials, output_name):
 class HPOConfiguration(ModelConfiguration):
     weight_decay: tuple[float] = (1e-6, 1e-2)
     n_layers: tuple[int] = (0, 3)
+    #context_length: tuple[int] = (3, 13)
     n_trials: int = 20
 
 
@@ -111,7 +113,8 @@ class HPOEstimator:
         return cls.estimator_class.load_predictor(filepath)
 
     def _find_best_model_config(self, data: DataSet):
-        study = optuna.create_study(direction="minimize")
+        cur_dir = Path(__file__).parent
+        study = optuna.create_study(direction="minimize", storage=f'sqlite:///{cur_dir}/study.db')
         objective = partial(self._objective_func, dataset=data)
         study.optimize(objective, n_trials=self._model_configuration.n_trials)
         logger.info(f"Number of finished trials: {len(study.trials)}")
