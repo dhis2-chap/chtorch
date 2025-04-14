@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from chap_core.data import DataSet
 from chap_core.datatypes import Samples
-from chtorch.distribution_loss import NegativeBinomialLoss, get_dist, NBLossWithNaN
+from chtorch.distribution_loss import NegativeBinomialLoss, NBLossWithNaN
 from chtorch.lightning_module import DeepARLightningModule
 from sklearn.preprocessing import StandardScaler
 from pydantic import BaseModel
@@ -36,6 +36,9 @@ class ProblemConfiguration(BaseModel):
 class ModelBase:
     problem_configuration: ProblemConfiguration
     model_configuration: ModelConfiguration
+
+    def _get_loss_class(self):
+        return NegativeBinomialLoss if not self.problem_configuration.predict_nans else NBLossWithNaN
 
     def _get_tensorifier(self):
         return Tensorifier(
@@ -70,7 +73,7 @@ class Predictor(ModelBase):
         self.context_length = model_configuration.context_length
         self.prediction_length = problem_configuration.prediction_length
         self.count_transform = Log1pTransform()
-        self._loss_class = NegativeBinomialLoss if not problem_configuration.predict_nans else NBLossWithNaN
+        self._loss_class = self._get_loss_class()
 
     def save(self, path: Path):
         torch.save(self.module.state_dict(), path)
@@ -134,9 +137,8 @@ class Estimator(ModelBase):
                  problem_configuration: ProblemConfiguration,
                  model_configuration: ModelConfiguration):
         self.count_transform = Log1pTransform()
-        self.loss = NegativeBinomialLoss(count_transform=self.count_transform)
-        if problem_configuration.predict_nans:
-            self.loss = NBLossWithNaN(count_transform=self.count_transform)
+
+
         self.last_val_loss = None
         self.context_length = model_configuration.context_length
         self.prediction_length = problem_configuration.prediction_length
@@ -146,6 +148,7 @@ class Estimator(ModelBase):
         self.problem_configuration = problem_configuration
         self.model_configuration = model_configuration
         self.tensorifier = self._get_tensorifier()
+        self.loss = self._get_loss_class()(count_transform=self.count_transform)
         if self.max_epochs is None:
             self.max_epochs = 2500 // self.context_length
 
@@ -180,6 +183,7 @@ class Estimator(ModelBase):
         module = Module(train_dataset.n_categories,
                         train_dataset.n_features,
                         prediction_length=self.prediction_length,
+                        output_dim=2+self.problem_configuration.predict_nans,
                         cfg=self.model_configuration)
 
         lightning_module = DeepARLightningModule(

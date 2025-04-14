@@ -42,9 +42,11 @@ class RNNWithLocationEmbedding(nn.Module):
                  num_categories: int,
                  input_feature_dim: int,
                  prediction_length: int,
+                 output_dim: int = 2,
                  cfg: RNNConfiguration = RNNConfiguration()):
         logger.info(f"Creating RNN with config: {cfg}")
         super().__init__()
+        self.output_dim = output_dim
         if cfg.embedding_type == 'sum':
             assert cfg.embed_dim == cfg.n_hidden, "Embedding dimension must be equal to hidden dimension for sum embedding"
             init_dim = input_feature_dim
@@ -63,7 +65,7 @@ class RNNWithLocationEmbedding(nn.Module):
             raise ValueError("Unsupported RNN type. Use 'GRU' or 'LSTM'.")
 
         self.decoder = nn.GRU(1, cfg.n_hidden, num_layers=cfg.num_rnn_layers, batch_first=True)
-        self.output_dim = 2
+
         self.output_decoder = nn.Linear(cfg.n_hidden+cfg.output_embedding_dim, cfg.n_hidden)
         self.ouput_layer = MLP(cfg.n_hidden, cfg.n_hidden, self.output_dim, cfg.n_layers, dropout=cfg.dropout)
         self.output_embedding = nn.Embedding(num_categories[0], cfg.output_embedding_dim)

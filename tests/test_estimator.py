@@ -11,6 +11,7 @@ from chtorch.hpo import HPOConfiguration, HPOEstimator
 def model_configuration():
     return ModelConfiguration(context_length=12)
 
+
 @pytest.fixture
 def hpo_model_configuration():
     return HPOConfiguration(context_length=(3, 12),
@@ -22,6 +23,8 @@ def problem_configuration():
     return ProblemConfiguration(prediction_length=3, debug=True)
 
 
+@pytest.mark.parametrize('problem_configuration',
+                         [ProblemConfiguration(prediction_length=3, debug=True, predict_nans=v) for v in [True]])#, False]])
 def test_estimator(ch_dataset, model_configuration, problem_configuration):
     estimator = Estimator(problem_configuration,
                           model_configuration=model_configuration)
@@ -29,6 +32,7 @@ def test_estimator(ch_dataset, model_configuration, problem_configuration):
     evaluate_model(estimator, ch_dataset, prediction_length=3,
                    n_test_sets=3,
                    weather_provider=QuickForecastFetcher)
+
 
 def test_hpo_estimator(ch_dataset, hpo_model_configuration, problem_configuration):
     estimator = HPOEstimator(problem_configuration, hpo_model_configuration)
@@ -54,4 +58,4 @@ def test_save(train_test, tmp_path):
     out_path = tmp_path / 'test_model'
     predictor.save(out_path)
     predictor.load(out_path)
-    #assert out_path.exists()
+    # assert out_path.exists()
