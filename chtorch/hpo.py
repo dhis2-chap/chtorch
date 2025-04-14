@@ -73,7 +73,7 @@ def tune_hyperparameters(dataset, n_trials, output_name):
 class HPOConfiguration(ModelConfiguration):
     weight_decay: tuple[float] = (1e-6, 1e-2)
     n_layers: tuple[int] = (0, 3)
-    #context_length: tuple[int] = (3, 13)
+    context_length: tuple[int] = (3, 13)
     n_trials: int = 20
 
 
@@ -94,6 +94,9 @@ class HPOEstimator:
                                                  self._model_configuration.weight_decay[1], log=True),
              'n_layers': trial.suggest_int("n_layers", self._model_configuration.n_layers[0],
                                            self._model_configuration.n_layers[1]),
+             'context_length': trial.suggest_int('context_length',
+                                                 self._model_configuration.context_length[0],
+                                                 self._model_configuration.context_length[1]),
              'dropout': trial.suggest_float('dropout', 0.0, 0.5),
              'output_embedding': trial.suggest_int('output_embedding', 0, 3),
              'num_rnn_layers': trial.suggest_int('num_rnn_layers', 1, 3),

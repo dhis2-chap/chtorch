@@ -67,7 +67,7 @@ def hpo(dataset_path: str,
         year_fraction: float = 0.5):
     dataset, n_test_sets = _get_dataset(dataset_path, None, False, year_fraction)
     model_configuration = cfg
-    cfg.context_length = 12 if isinstance(dataset.period_range[0], Month) else 52
+    cfg.context_length = (3, 13) if isinstance(dataset.period_range[0], Month) else (12, 53)
     model_template = HPOModelTemplate(p_cfg, auxilliary=False)
     estimator = model_template.get_model(model_configuration)
     predictions_list = list(backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
