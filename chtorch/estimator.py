@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from chap_core.data import DataSet
 from chap_core.datatypes import Samples
-from chtorch.distribution_loss import NegativeBinomialLoss, get_dist
+from chtorch.distribution_loss import NegativeBinomialLoss, get_dist, NBLossWithNaN
 from chtorch.lightning_module import DeepARLightningModule
 from sklearn.preprocessing import StandardScaler
 from pydantic import BaseModel
@@ -28,6 +28,7 @@ class ModelConfiguration(RNNConfiguration):
 class ProblemConfiguration(BaseModel):
     prediction_length: int = 3
     replace_zeros: bool = False
+    predict_nans: bool = False
     debug: bool = False
     validate: bool = False
 
@@ -69,6 +70,7 @@ class Predictor(ModelBase):
         self.context_length = model_configuration.context_length
         self.prediction_length = problem_configuration.prediction_length
         self.count_transform = Log1pTransform()
+        self._loss_class = NegativeBinomialLoss if not problem_configuration.predict_nans else NBLossWithNaN
 
     def save(self, path: Path):
         torch.save(self.module.state_dict(), path)
@@ -92,8 +94,6 @@ class Predictor(ModelBase):
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
-        # logging.warning('SUCH A SHITTY HACK')
-        # parents = np.zeros_like(parents)
         tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
         historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
         _DataSet = TSDataSet if not self.is_flat else FlatTSDataSet
@@ -101,7 +101,7 @@ class Predictor(ModelBase):
         *instance, population = ts_dataset.last_prediction_instance()
         with torch.no_grad():
             eta = self.module(*instance)
-        samples = get_dist(eta, population, self.count_transform).sample((100,))
+        samples = self._loss_class.get_dist(eta, population, self.count_transform).sample((100,))
         output = {}
         period_range = future_data.period_range
 
@@ -134,6 +134,9 @@ class Estimator(ModelBase):
                  problem_configuration: ProblemConfiguration,
                  model_configuration: ModelConfiguration):
         self.count_transform = Log1pTransform()
+        self.loss = NegativeBinomialLoss(count_transform=self.count_transform)
+        if problem_configuration.predict_nans:
+            self.loss = NBLossWithNaN(count_transform=self.count_transform)
         self.last_val_loss = None
         self.context_length = model_configuration.context_length
         self.prediction_length = problem_configuration.prediction_length
@@ -181,7 +184,7 @@ class Estimator(ModelBase):
 
         lightning_module = DeepARLightningModule(
             module,
-            NegativeBinomialLoss(count_transform=self.count_transform))
+            self.loss)
 
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
                             accelerator="cpu")

@@ -73,7 +73,7 @@ def tune_hyperparameters(dataset, n_trials, output_name):
 class HPOConfiguration(ModelConfiguration):
     weight_decay: tuple[float] = (1e-6, 1e-2)
     n_layers: tuple[int] = (0, 3)
-    context_length: tuple[int] = (3, 13)
+    context_length: tuple[int, int] = (3, 13)
     n_trials: int = 20
 
 

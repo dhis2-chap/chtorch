@@ -13,7 +13,8 @@ def model_configuration():
 
 @pytest.fixture
 def hpo_model_configuration():
-    return HPOConfiguration(context_length=12)
+    return HPOConfiguration(context_length=(3, 12),
+                            n_trials=2)
 
 
 @pytest.fixture
