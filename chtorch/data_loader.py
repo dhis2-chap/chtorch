@@ -6,7 +6,7 @@ import torch
 
 
 class TSDataSet(torch.utils.data.Dataset):
-    def __init__(self, X, y, population, context_length, prediction_length, parents=None):
+    def __init__(self, X, y, population, context_length, prediction_length, parents=None, time_indices=None):
         if y is not None:
             assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         self.X = X  # time, location, feature
@@ -19,6 +19,15 @@ class TSDataSet(torch.utils.data.Dataset):
         self.locations = np.array([np.arange(n_locations) for _ in range(context_length)])[..., None]
         self.n_locations = n_locations
         self.parents = parents
+        self._indices = indices
+
+    @property
+    def n_time_steps(self):
+        return self.X.shape[0]
+
+    def subset(self, ):
+        return self.__class__(self.X, self.y, self.population, self.context_length,
+                              self.prediction_length, parents=self.parents, time_indices=time_indices)
 
     @property
     def n_categories(self):
@@ -80,8 +89,7 @@ class MultiDataset(torch.utils.data.Dataset):
         self.cumulative_lens = np.cumsum(lens)
         self._category_offsets = np.cumsum([0] + [dataset.n_categories[0] for dataset in datasets])
         self._len = sum(lens)
-        self._extra_len  = (main_dataset_weight-1) * lens[0]
-
+        self._extra_len = (main_dataset_weight - 1) * lens[0]
 
     def __str__(self):
         return f"MultiDataset: {self.n_datasets} datasets, {self._len} samples, {self.n_features} features and {self.n_categories} categories. "
@@ -103,13 +111,13 @@ class MultiDataset(torch.utils.data.Dataset):
         locations = locations.copy()
         locations[:, 0] += self._category_offsets[dataset_idx]
         locations[:, 1] = dataset_idx
-        #assert all(i<n for i, n in zip(np.max(locations, axis=0), self.n_categories)), \
+        # assert all(i<n for i, n in zip(np.max(locations, axis=0), self.n_categories)), \
         #    f"Locations {locations} exceed categories {self.n_categories}"
         return x, locations, y, population
 
     def _split_index(self, item):
         if item >= self._len:
-            return 0, (item-self._len) % len(self.datasets[0])
+            return 0, (item - self._len) % len(self.datasets[0])
         i = np.searchsorted(self.cumulative_lens, item, side='right')
-        j = item-self.cumulative_lens[i-1] if i > 0 else item
+        j = item - self.cumulative_lens[i - 1] if i > 0 else item
         return i, j

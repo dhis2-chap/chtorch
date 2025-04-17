@@ -16,7 +16,7 @@ from chap_core.time_period import Month
 
 from chtorch.hpo import HPOConfiguration, HPOModelTemplate
 from chtorch.model_template import TorchModelTemplate
-from chtorch.validation import validate_dataset, filter_dataset
+from chtorch.validation import filter_dataset
 from cyclopts import App
 
 from chtorch.estimator import Estimator, ModelConfiguration, ProblemConfiguration
@@ -56,9 +56,10 @@ def smape(target, samples):
     target = target[..., None]
     samples = samples[~na_mask]
     s = np.abs(samples) + np.abs(target)
-    return np.mean(np.where(s==0,
+    return np.mean(np.where(s == 0,
                             0,
                             2 * np.abs(samples - target) / s))
+
 
 @app.command()
 def hpo(dataset_path: str,
@@ -94,19 +95,22 @@ def evaluate(dataset_path: str,
     >>> main_function()
     '''
     dataset, n_test_sets = _get_dataset(dataset_path, frequency, remove_last_year, year_fraction)
+    frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
     if cfg_path:
         model_configuration = ModelConfiguration.parse_file(cfg_path)
     else:
         model_configuration = cfg
     model_template = TorchModelTemplate(p_cfg, auxilliary=aux)
+    cfg.context_length = 12 if frequency == 'M' else 38
+
     estimator = model_template.get_model(model_configuration)
     predictions_list = list(backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
                                      n_test_sets=n_test_sets, stride=1,
                                      weather_provider=QuickForecastFetcher))
-    _write_output(dataset, dataset_path, model_configuration, predictions_list)
+    _write_output(dataset, dataset_path, model_configuration, predictions_list, p_cfg.predict_nans)
 
 
-def _write_output(dataset, dataset_path, model_configuration, predictions_list):
+def _write_output(dataset, dataset_path, model_configuration, predictions_list, predict_nans=False):
     name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
     stem = Path(dataset_path).stem
     score = np.mean([smape(d.disease_cases, d.samples) for p in predictions_list for d in p.values()])
@@ -137,7 +141,7 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list):
         new_list = []
         for p in predictions_list:
             p.set_polygons(dataset.polygons)
-            new_list.append(p.aggregate_to_parent(field_name='samples'))
+            new_list.append(p.aggregate_to_parent(field_name='samples', nan_indicator=None if predict_nans else 'disease_cases'))
         a_predictions_list = new_list
         a_response = samples_to_evaluation_response(
             a_predictions_list,
@@ -160,7 +164,7 @@ def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
     dataset = filter_dataset(dataset, unused_periods)
     if remove_last_year:
         dataset, _ = train_test_generator(dataset, prediction_length=removed_periods, n_test_sets=1)
-    #validate_dataset(dataset, lag=12)
+    # validate_dataset(dataset, lag=12)
     return dataset, n_test_sets
 
 

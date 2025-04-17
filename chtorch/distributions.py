@@ -22,7 +22,6 @@ class NegativeBinomialWithNan:
     def sample(self, shape):
         is_nan = self._bernoulli.sample(shape)
         y = self._nb.sample(shape)
-        print(is_nan)
         return torch.where(is_nan == 1, 0, y) #TODO: maybe put in nans and replace later
 
 

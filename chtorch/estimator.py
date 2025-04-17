@@ -31,7 +31,8 @@ class ProblemConfiguration(BaseModel):
     predict_nans: bool = False
     debug: bool = False
     validate: bool = False
-
+    validation_splits: int = 5
+    validation_index: int = 4
 
 class ModelBase:
     problem_configuration: ProblemConfiguration
@@ -137,9 +138,8 @@ class Estimator(ModelBase):
                  problem_configuration: ProblemConfiguration,
                  model_configuration: ModelConfiguration):
         self.count_transform = Log1pTransform()
-
-
         self.last_val_loss = None
+        self.last_train_loss = None
         self.context_length = model_configuration.context_length
         self.prediction_length = problem_configuration.prediction_length
         self.debug = problem_configuration.debug
@@ -157,14 +157,7 @@ class Estimator(ModelBase):
         DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
         train_dataset, transformer = self._get_transformed_dataset(data)
         if self.validate:
-            cutoff = int(len(train_dataset) * 0.8)
-            val_dataset = torch.utils.data.Subset(train_dataset,
-                                                  range(cutoff, len(train_dataset)))
-            n_categories = train_dataset.n_categories
-            n_features = train_dataset.n_features
-            train_dataset = torch.utils.data.Subset(train_dataset, range(cutoff))
-            train_dataset.n_categories = n_categories
-            train_dataset.n_features = n_features
+            train_dataset, val_dataset = self._split_validation(train_dataset)
         assert len(train_dataset.n_categories) == train_dataset[0][1].shape[
             -1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
         batch_size = 64 if self.is_flat else 8
@@ -195,6 +188,7 @@ class Estimator(ModelBase):
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         self.last_val_loss = lightning_module.last_validation_loss
+        self.last_train_loss = lightning_module.last_train_loss
         return self.predictor_cls(module,
                                   PredictorInfo(
                                       problem_configuration=self.problem_configuration,
@@ -202,6 +196,26 @@ class Estimator(ModelBase):
                                       n_features=train_dataset.n_features,
                                       n_categories=train_dataset.n_categories),
                                   transformer)
+
+    def _split_validation(self, train_dataset):
+        n_splits = self.problem_configuration.validation_splits
+        split = self.problem_configuration.validation_index
+        validation_start = int(len(train_dataset) * float(split)/n_splits)
+        validation_end = int(len(train_dataset) * float(split+1)/n_splits)
+        #cutoff = int(len(train_dataset) * 0.8)
+        validation_indices = list(range(validation_start, validation_end))[self.prediction_length-1:]
+        training_indices = list(range(validation_start))
+        if split!=n_splits-1:
+            validation_indices = validation_indices[:-self.prediction_length+1]#TODO: this is wrong, should be
+            training_indices+=list(range(validation_end, len(train_dataset)))
+        val_dataset = torch.utils.data.Subset(train_dataset, validation_indices)
+        n_categories = train_dataset.n_categories
+        n_features = train_dataset.n_features
+        #training_indices = range(cutoff)
+        train_dataset = torch.utils.data.Subset(train_dataset, training_indices)
+        train_dataset.n_categories = n_categories
+        train_dataset.n_features = n_features
+        return train_dataset, val_dataset
 
     def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
         """Convert the data to a format suitable for training."""

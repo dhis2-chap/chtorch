@@ -71,8 +71,8 @@ def tune_hyperparameters(dataset, n_trials, output_name):
 
 
 class HPOConfiguration(ModelConfiguration):
-    weight_decay: tuple[float] = (1e-6, 1e-2)
-    n_layers: tuple[int] = (0, 3)
+    weight_decay: tuple[float, float] = (1e-6, 1e-2)
+    n_layers: tuple[int, int] = (0, 3)
     context_length: tuple[int, int] = (3, 13)
     n_trials: int = 20
 
@@ -106,9 +106,12 @@ class HPOEstimator:
         model_config = ModelConfiguration(**(self._model_configuration.dict() | d))
         problem_configuration = self._problem_configuration.copy()
         problem_configuration.validate = True
-        estimator = Estimator(problem_configuration, model_config)
-        _ = estimator.train(dataset)
-        val_loss = estimator.last_val_loss
+        val_loss = 0
+        for split in (1, 2, 3, 4):
+            problem_configuration.validation_index = split
+            estimator = Estimator(problem_configuration, model_config)
+            _ = estimator.train(dataset)
+            val_loss += estimator.last_val_loss
         return val_loss
 
     @classmethod
