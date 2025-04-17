@@ -31,12 +31,17 @@ app = App()
 def validation_training(dataset_path: str,
                         frequency: Literal['M', 'W'] = 'M',
                         cfg: ModelConfiguration = ModelConfiguration(),
-                        p_cfg: ProblemConfiguration = ProblemConfiguration()):
+                        p_cfg: ProblemConfiguration = ProblemConfiguration(),
+                        cfg_path: Optional[Path] = None,
+    ):
     dataset = DataSet.from_csv(dataset_path, FullData)
+    frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
     dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
     p_cfg.validate = True
     p_cfg.validation_splits = 3
     p_cfg.validation_index = 2
+    if cfg_path is not None:
+        cfg = ModelConfiguration.parse_file(cfg_path)
     estimator = Estimator(model_configuration=cfg, problem_configuration=p_cfg)
     estimator.train(dataset)
     logger.info(estimator.last_val_loss)

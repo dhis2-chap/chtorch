@@ -7,7 +7,7 @@ import torch
 from chap_core.data import DataSet
 from chap_core.datatypes import Samples
 
-from chtorch.data_augmentation import PoissonAugmentation
+from chtorch.data_augmentation import PoissonAugmentation, MaskingAugmentation, get_augmentation
 from chtorch.distribution_loss import NegativeBinomialLoss, NBLossWithNaN
 from chtorch.lightning_module import DeepARLightningModule
 from sklearn.preprocessing import StandardScaler
@@ -25,7 +25,7 @@ class ModelConfiguration(RNNConfiguration):
     context_length: int = 12
     use_population: bool = True
     features: list[str] = ['rainfall', 'mean_temperature']
-
+    augmentations: list[str] = []
 
 class ProblemConfiguration(BaseModel):
     prediction_length: int = 3
@@ -160,8 +160,9 @@ class Estimator(ModelBase):
         train_dataset, transformer = self._get_transformed_dataset(data)
         if self.validate:
             train_dataset, val_dataset = self._split_validation(train_dataset)
-
-        train_dataset.add_augmentation(PoissonAugmentation())
+        for augmentation in self.model_configuration.augmentations:
+            train_dataset.add_augmentation(get_augmentation(augmentation))
+        #train_dataset.add_augmentation(MaskingAugmentation(0.1))
         assert len(train_dataset.n_categories) == train_dataset[0][1].shape[
             -1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
         batch_size = 64 if self.is_flat else 8
