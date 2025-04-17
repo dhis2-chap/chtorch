@@ -15,7 +15,7 @@ class DeepARLightningModule(L.LightningModule):
 
     @property
     def last_validation_loss(self):
-        return sum(self.last_validation_losses.values())/len(self.last_validation_losses)
+        return sum(self.last_validation_losses.values())/len(self.last_validation_losses) if self.last_validation_losses else 0
 
     @property
     def last_train_loss(self):

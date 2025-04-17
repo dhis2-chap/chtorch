@@ -6,7 +6,7 @@ import torch
 
 
 class TSDataSet(torch.utils.data.Dataset):
-    def __init__(self, X, y, population, context_length, prediction_length, parents=None, time_indices=None):
+    def __init__(self, X, y, population, context_length, prediction_length, parents=None):
         if y is not None:
             assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         self.X = X  # time, location, feature
@@ -19,15 +19,7 @@ class TSDataSet(torch.utils.data.Dataset):
         self.locations = np.array([np.arange(n_locations) for _ in range(context_length)])[..., None]
         self.n_locations = n_locations
         self.parents = parents
-        self._indices = indices
 
-    @property
-    def n_time_steps(self):
-        return self.X.shape[0]
-
-    def subset(self, ):
-        return self.__class__(self.X, self.y, self.population, self.context_length,
-                              self.prediction_length, parents=self.parents, time_indices=time_indices)
 
     @property
     def n_categories(self):

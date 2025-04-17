@@ -200,14 +200,17 @@ class Estimator(ModelBase):
     def _split_validation(self, train_dataset):
         n_splits = self.problem_configuration.validation_splits
         split = self.problem_configuration.validation_index
+        split = split + n_splits
+        n_splits = n_splits*2
+
         validation_start = int(len(train_dataset) * float(split)/n_splits)
-        validation_end = int(len(train_dataset) * float(split+1)/n_splits)
+        #validation_end = int(len(train_dataset) * float(split+1)/n_splits)
         #cutoff = int(len(train_dataset) * 0.8)
-        validation_indices = list(range(validation_start, validation_end))[self.prediction_length-1:]
+        validation_indices = list(range(validation_start, len(train_dataset)))[self.prediction_length-1:]
         training_indices = list(range(validation_start))
-        if split!=n_splits-1:
-            validation_indices = validation_indices[:-self.prediction_length+1]#TODO: this is wrong, should be
-            training_indices+=list(range(validation_end, len(train_dataset)))
+        #if split!=n_splits-1:
+        #    validation_indices = validation_indices[:-self.prediction_length+1]#TODO: this is wrong, should be
+        #    training_indices+=list(range(validation_end, len(train_dataset)))
         val_dataset = torch.utils.data.Subset(train_dataset, validation_indices)
         n_categories = train_dataset.n_categories
         n_features = train_dataset.n_features
