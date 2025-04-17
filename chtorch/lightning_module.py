@@ -37,7 +37,7 @@ class DeepARLightningModule(L.LightningModule):
         log_rate = self.module(X, locations).squeeze(-1)
         loss = self.loss(log_rate, y, population)
         self.last_validation_losses[batch_idx] = loss
-        self.log("validation_loss", loss, prog_bar=False, logger=False)
+        self.log("validation_loss", loss, prog_bar=True, logger=True)
         return loss
 
     def configure_optimizers(self):

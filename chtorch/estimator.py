@@ -6,6 +6,8 @@ import numpy as np
 import torch
 from chap_core.data import DataSet
 from chap_core.datatypes import Samples
+
+from chtorch.data_augmentation import PoissonAugmentation
 from chtorch.distribution_loss import NegativeBinomialLoss, NBLossWithNaN
 from chtorch.lightning_module import DeepARLightningModule
 from sklearn.preprocessing import StandardScaler
@@ -158,6 +160,8 @@ class Estimator(ModelBase):
         train_dataset, transformer = self._get_transformed_dataset(data)
         if self.validate:
             train_dataset, val_dataset = self._split_validation(train_dataset)
+
+        train_dataset.add_augmentation(PoissonAugmentation())
         assert len(train_dataset.n_categories) == train_dataset[0][1].shape[
             -1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
         batch_size = 64 if self.is_flat else 8
@@ -211,13 +215,15 @@ class Estimator(ModelBase):
         #if split!=n_splits-1:
         #    validation_indices = validation_indices[:-self.prediction_length+1]#TODO: this is wrong, should be
         #    training_indices+=list(range(validation_end, len(train_dataset)))
-        val_dataset = torch.utils.data.Subset(train_dataset, validation_indices)
-        n_categories = train_dataset.n_categories
-        n_features = train_dataset.n_features
+        #val_dataset = torch.utils.data.Subset(train_dataset, validation_indices)
+        val_dataset = train_dataset.subset(validation_indices)
+        #n_categories = train_dataset.n_categories
+        #n_features = train_dataset.n_features
         #training_indices = range(cutoff)
-        train_dataset = torch.utils.data.Subset(train_dataset, training_indices)
-        train_dataset.n_categories = n_categories
-        train_dataset.n_features = n_features
+        #train_dataset = torch.utils.data.Subset(train_dataset, training_indices)
+        train_dataset = train_dataset.subset(training_indices)
+        #train_dataset.n_categories = n_categories
+        #train_dataset.n_features = n_features
         return train_dataset, val_dataset
 
     def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:

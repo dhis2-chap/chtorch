@@ -1,12 +1,8 @@
-# import torch
-# from pytorch_forecasting import Baseline, DeepAR, TimeSeriesDataSet
-
-import numpy as np
 import torch
-
+import numpy as np
 
 class TSDataSet(torch.utils.data.Dataset):
-    def __init__(self, X, y, population, context_length, prediction_length, parents=None):
+    def __init__(self, X, y, population, context_length, prediction_length, parents=None, indices=None, augmentations=None):
         if y is not None:
             assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         self.X = X  # time, location, feature
@@ -19,7 +15,11 @@ class TSDataSet(torch.utils.data.Dataset):
         self.locations = np.array([np.arange(n_locations) for _ in range(context_length)])[..., None]
         self.n_locations = n_locations
         self.parents = parents
+        self.augmentations = augmentations if augmentations is not None else []
+        self.indices = indices
 
+    def add_augmentation(self, augmentation):
+        self.augmentations.append(augmentation)
 
     @property
     def n_categories(self):
@@ -29,15 +29,30 @@ class TSDataSet(torch.utils.data.Dataset):
     def n_features(self):
         return self.X.shape[-1]
 
+    def subset(self, indices):
+        """
+        Return a subset of the dataset with the given indices.
+        """
+        assert self.indices is None, "Cannot subset a dataset that has already been subsetted."
+        return self.__class__(self.X, self.y, self.population, self.context_length, self.prediction_length,
+                         parents=self.parents, indices=indices, augmentations=self.augmentations)
+
     def __len__(self):
+        if self.indices is not None:
+            return len(self.indices)
         return len(self.X) - self.total_length + 1
 
     def __getitem__(self, i) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if self.indices is not None:
+            i = self.indices[i]
         x = self.X[i:i + self.context_length]
         y = self.y[i + self.context_length:i + self.total_length]
         population = self.population[i + self.context_length:i + self.total_length]
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
-        return x, self.locations, y, population
+        output = x, self.locations, y, population
+        for augmentation in self.augmentations:
+            output = augmentation.transform(output)
+        return output
 
     def last_prediction_instance(self):
         last_population = self.population[-1]
