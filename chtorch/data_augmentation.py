@@ -67,6 +67,8 @@ class ScalingAugmentation(Augmentation):
         log_scale = np.random.uniform(-self.log_max_scale, self.log_max_scale)
         scale = np.exp(log_scale)
         x, *_, y, population = data
+        y = y*scale
+        population = po
         x = x.copy()
         x[..., -1] = x[..., -1] * scale
         return x, *rest

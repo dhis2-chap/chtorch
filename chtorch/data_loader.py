@@ -1,8 +1,10 @@
 import torch
 import numpy as np
 
+
 class TSDataSet(torch.utils.data.Dataset):
-    def __init__(self, X, y, population, context_length, prediction_length, parents=None, indices=None, augmentations=None):
+    def __init__(self, X, y, population, context_length, prediction_length, parents=None, indices=None,
+                 augmentations=None, transformer=None):
         if y is not None:
             assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         self.X = X  # time, location, feature
@@ -17,6 +19,12 @@ class TSDataSet(torch.utils.data.Dataset):
         self.parents = parents
         self.augmentations = augmentations if augmentations is not None else []
         self.indices = indices
+        self.transformer = transformer
+
+    def _transform_x(self, x):
+        if self.transformer is not None:
+            x = self.transformer.transform(x)
+        return x
 
     def add_augmentation(self, augmentation):
         self.augmentations.append(augmentation)
@@ -35,7 +43,8 @@ class TSDataSet(torch.utils.data.Dataset):
         """
         assert self.indices is None, "Cannot subset a dataset that has already been subsetted."
         return self.__class__(self.X, self.y, self.population, self.context_length, self.prediction_length,
-                         parents=self.parents, indices=indices, augmentations=self.augmentations)
+                              parents=self.parents, indices=indices, augmentations=self.augmentations,
+                              transformer=self.transformer)
 
     def __len__(self):
         if self.indices is not None:
@@ -49,6 +58,7 @@ class TSDataSet(torch.utils.data.Dataset):
         y = self.y[i + self.context_length:i + self.total_length]
         population = self.population[i + self.context_length:i + self.total_length]
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
+        x = self._transform_x(x)
         output = x, self.locations, y, population
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
@@ -69,6 +79,7 @@ class FlatTSDataSet(TSDataSet):
     def __getitem__(self, item):
         i, j = divmod(item, self.X.shape[1])
         x = self.X[i:i + self.context_length, j]
+        x = self._transform_x(x)
         y = self.y[i + self.context_length:i + self.total_length, j]
         population = self.population[i + self.context_length:i + self.total_length, j]
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
@@ -82,7 +93,10 @@ class FlatTSDataSet(TSDataSet):
         location_row = np.array([self.locations[0].ravel(), self.parents]).T
         location = np.array([location_row for _ in range(self.context_length)]).swapaxes(0, 1)
         assert location.shape == (self.n_locations, self.context_length, 2), location.shape
-        return (torch.from_numpy(self.X[-self.context_length:, ...].swapaxes(0, 1)),
+        x = self.X[-self.context_length:, ...].swapaxes(0, 1)
+        shape = x.shape
+        x = self._transform_x(x.reshape(-1, shape[-1])).reshape(shape)
+        return (torch.from_numpy(x),
                 torch.from_numpy(location),
                 torch.from_numpy(repeated_population))
 

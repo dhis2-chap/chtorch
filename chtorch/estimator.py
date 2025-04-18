@@ -100,10 +100,12 @@ class Predictor(ModelBase):
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
-        tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
-        historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
+        historic_tensor = historic_tensor.astype(np.float32)
+        #tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
+        #historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
         _DataSet = TSDataSet if not self.is_flat else FlatTSDataSet
-        ts_dataset = _DataSet(historic_tensor, None, population, self.context_length, self.prediction_length, parents)
+        ts_dataset = _DataSet(historic_tensor, None, population, self.context_length, self.prediction_length, parents,
+                              transformer=self.transformer)
         *instance, population = ts_dataset.last_prediction_instance()
         with torch.no_grad():
             eta = self.module(*instance)
@@ -162,7 +164,6 @@ class Estimator(ModelBase):
             train_dataset, val_dataset = self._split_validation(train_dataset)
         for augmentation in self.model_configuration.augmentations:
             train_dataset.add_augmentation(get_augmentation(augmentation))
-        #train_dataset.add_augmentation(MaskingAugmentation(0.1))
         assert len(train_dataset.n_categories) == train_dataset[0][1].shape[
             -1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
         batch_size = 64 if self.is_flat else 8
@@ -203,28 +204,19 @@ class Estimator(ModelBase):
                                   transformer)
 
     def _split_validation(self, train_dataset):
+        '''
+        This needs to be done somewhere else. Per now there is some overlap in the prediction periods
+        of train and validation
+        '''
         n_splits = self.problem_configuration.validation_splits
         split = self.problem_configuration.validation_index
         split = split + n_splits
         n_splits = n_splits*2
-
         validation_start = int(len(train_dataset) * float(split)/n_splits)
-        #validation_end = int(len(train_dataset) * float(split+1)/n_splits)
-        #cutoff = int(len(train_dataset) * 0.8)
-        validation_indices = list(range(validation_start, len(train_dataset)))[self.prediction_length-1:]
+        validation_indices = list(range(validation_start, len(train_dataset)))
         training_indices = list(range(validation_start))
-        #if split!=n_splits-1:
-        #    validation_indices = validation_indices[:-self.prediction_length+1]#TODO: this is wrong, should be
-        #    training_indices+=list(range(validation_end, len(train_dataset)))
-        #val_dataset = torch.utils.data.Subset(train_dataset, validation_indices)
         val_dataset = train_dataset.subset(validation_indices)
-        #n_categories = train_dataset.n_categories
-        #n_features = train_dataset.n_features
-        #training_indices = range(cutoff)
-        #train_dataset = torch.utils.data.Subset(train_dataset, training_indices)
         train_dataset = train_dataset.subset(training_indices)
-        #train_dataset.n_categories = n_categories
-        #train_dataset.n_features = n_features
         return train_dataset, val_dataset
 
     def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
@@ -236,10 +228,11 @@ class Estimator(ModelBase):
         transformer = StandardScaler()
         input_features = array_dataset.shape[-1]
         transformed_dataset = transformer.fit_transform(array_dataset.reshape(-1, input_features))
-        X = transformed_dataset.reshape(array_dataset.shape).astype(np.float32)
+        X = array_dataset.reshape(array_dataset.shape).astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
         if self.problem_configuration.replace_zeros:
             y = np.where(y == 0, np.nan, y)
         assert len(X) == len(y)
-        train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.prediction_length, parents)
+        train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.prediction_length, parents,
+                                      transformer=transformer)
         return train_dataset, transformer
