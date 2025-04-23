@@ -24,6 +24,8 @@ class MaskedNANLoss(abc.ABC, nn.Module):
         y_pred: (batch_size, 2)  - First column: mean (μ), Second column: dispersion (θ)
         y_true: (batch_size, 1)  - Observed counts
         """
+        #print(torch.max(eta[..., 0]), torch.min(eta[..., 0]))
+        #print(torch.max(eta[..., 1]), torch.min(eta[..., 1]))
         na_mask = ~torch.isnan(y_true)
         y_true = y_true[na_mask]
         population = population[na_mask]

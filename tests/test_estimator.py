@@ -24,7 +24,7 @@ def problem_configuration():
 
 
 @pytest.mark.parametrize('problem_configuration',
-                         [ProblemConfiguration(prediction_length=3, debug=True, predict_nans=v) for v in [True]])#, False]])
+                         [ProblemConfiguration(prediction_length=3, debug=True, predict_nans=v) for v in [False]])#, False]])
 def test_estimator(ch_dataset, model_configuration, problem_configuration):
     estimator = Estimator(problem_configuration,
                           model_configuration=model_configuration)

@@ -24,7 +24,7 @@ class AuxilliaryEstimator(Estimator):
         """Convert the data to a format suitable for training."""
         datasets = [self._get_single_transformed_dataset(dataset)[0]
                     for dataset in self._auxilliary_datasets.values()]
-        main_dataset, transformer = super()._get_transformed_dataset(data)
+        main_dataset, transformer, target_scaler = super()._get_transformed_dataset(data)
         datasets = [main_dataset] + datasets
         multi_dataset = MultiDataset(datasets, main_dataset_weight=10)
-        return multi_dataset, transformer
+        return multi_dataset, transformer, target_scaler

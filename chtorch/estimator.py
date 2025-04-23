@@ -15,9 +15,10 @@ from pydantic import BaseModel
 from chtorch.count_transforms import Log1pTransform
 from chtorch.data_loader import TSDataSet, FlatTSDataSet
 from chtorch.module import RNNWithLocationEmbedding, FlatRNN, RNNConfiguration
+from chtorch.target_scaler import TargetScaler
 from chtorch.tensorifier import Tensorifier
 import lightning as L
-
+from pytorch_lightning.tuner.tuning import Tuner
 logger = logging.getLogger(__name__)
 
 
@@ -69,7 +70,8 @@ class Predictor(ModelBase):
 
     def __init__(self, module,
                  predictor_info: PredictorInfo,
-                 transformer: StandardScaler):
+                 transformer: StandardScaler,
+                 target_scaler = None):
         super().__init__()
         problem_configuration = predictor_info.problem_configuration
         model_configuration = predictor_info.model_configuration
@@ -83,6 +85,7 @@ class Predictor(ModelBase):
         self.prediction_length = problem_configuration.prediction_length
         self.count_transform = Log1pTransform()
         self._loss_class = self._get_loss_class()
+        self._target_scaler = target_scaler
 
     def save(self, path: Path):
         torch.save(self.module.state_dict(), path)
@@ -115,6 +118,8 @@ class Predictor(ModelBase):
         *instance, population = ts_dataset.last_prediction_instance()
         with torch.no_grad():
             eta = self.module(*instance)
+            if self._target_scaler is not None:
+                eta = self._target_scaler.scale_by_location(instance[1][:, 0, 0], eta)
         samples = self._loss_class.get_dist(eta, population, self.count_transform).sample((100,))
         output = {}
         period_range = future_data.period_range
@@ -166,13 +171,16 @@ class Estimator(ModelBase):
     def train(self, data: DataSet):
         assert self.is_flat, "non-Flat model is deprecated"
         DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
-        train_dataset, transformer = self._get_transformed_dataset(data)
+        train_dataset, transformer, target_scaler = self._get_transformed_dataset(data)
         if self.validate:
             train_dataset, val_dataset = self._split_validation(train_dataset)
+
         for augmentation in self.model_configuration.augmentations:
             train_dataset.add_augmentation(get_augmentation(augmentation))
+
         assert len(train_dataset.n_categories) == train_dataset[0][1].shape[
             -1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
+
         loader = torch.utils.data.DataLoader(train_dataset,
                                              batch_size=self.model_configuration.batch_size,
                                              shuffle=True,
@@ -194,11 +202,13 @@ class Estimator(ModelBase):
         lightning_module = DeepARLightningModule(
             module,
             self.loss,
+            target_scaler=target_scaler,
             weight_decay=self.model_configuration.weight_decay,
             learning_rate=self.model_configuration.learning_rate)
+
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
                             accelerator="cpu")
-
+        #tuner = Tuner(trainer)
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         self.last_val_loss = lightning_module.last_validation_loss
         self.last_train_loss = lightning_module.last_train_loss
@@ -209,7 +219,8 @@ class Estimator(ModelBase):
                                       model_configuration=self.model_configuration,
                                       n_features=train_dataset.n_features,
                                       n_categories=train_dataset.n_categories),
-                                  transformer)
+                                  transformer,
+                                  target_scaler=target_scaler)
 
     def _split_validation(self, train_dataset):
         '''
@@ -241,9 +252,10 @@ class Estimator(ModelBase):
         transformer.fit_transform(array_dataset.reshape(-1, input_features))
         X = array_dataset.reshape(array_dataset.shape).astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
+        target_scaler = TargetScaler(self.count_transform.forward(y, population))
         if self.problem_configuration.replace_zeros:
             y = np.where(y == 0, np.nan, y)
         assert len(X) == len(y)
         train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.prediction_length, parents,
                                       transformer=transformer)
-        return train_dataset, transformer
+        return train_dataset, transformer, target_scaler
