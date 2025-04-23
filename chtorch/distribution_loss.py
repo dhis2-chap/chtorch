@@ -1,3 +1,5 @@
+import abc
+
 import torch
 from chtorch.count_transforms import CountTransform
 from torch import nn
@@ -5,16 +7,17 @@ from torch import nn
 from chtorch.distributions import NegativeBinomialWithNan
 
 
-class NegativeBinomialLoss(nn.Module):
+class MaskedNANLoss(abc.ABC, nn.Module):
+    n_parameters = 0
+
+    @staticmethod
+    @abc.abstractmethod
+    def get_dist(eta, population, count_transform):
+        pass
+
     def __init__(self, count_transform: CountTransform):
         super().__init__()
         self._count_transform = count_transform
-
-    @staticmethod
-    def get_dist(eta, population, count_transform):
-        return torch.distributions.NegativeBinomial(
-            total_count=count_transform.inverse(eta[..., 0], population) / torch.exp(eta[..., 1]),
-            logits=eta[..., 1])
 
     def forward(self, eta, y_true, population):
         """
@@ -30,7 +33,27 @@ class NegativeBinomialLoss(nn.Module):
         return loss
 
 
+class NegativeBinomialLoss(MaskedNANLoss):
+    n_parameters = 2
+
+    @staticmethod
+    def get_dist(eta, population, count_transform):
+        return torch.distributions.NegativeBinomial(
+            total_count=count_transform.inverse(eta[..., 0], population) / torch.exp(eta[..., 1]),
+            logits=eta[..., 1])
+
+
+class PoissonLoss(MaskedNANLoss):
+    n_parameters = 1
+
+    @staticmethod
+    def get_dist(eta, population, count_transform):
+        return torch.distributions.Poisson(rate=count_transform.inverse(eta[..., 0], population))
+
+
 class NBLossWithNaN(NegativeBinomialLoss):
+    n_parameters = 3
+
     @staticmethod
     def get_dist(eta, population, count_transform):
         return NegativeBinomialWithNan(
@@ -46,8 +69,6 @@ class NBLossWithNaN(NegativeBinomialLoss):
         dist = self.get_dist(eta, population, self._count_transform)
         loss = -dist.log_prob(y_true).mean()
         return loss
-
-
 
 
 def get_dist(eta, population, count_transform):

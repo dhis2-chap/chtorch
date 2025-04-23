@@ -1,4 +1,6 @@
 """Console script for chtorch."""
+import itertools
+import plotly.express as px
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -29,7 +31,6 @@ app = App()
 
 @app.command()
 def validation_training(dataset_path: str,
-                        frequency: Literal['M', 'W'] = 'M',
                         cfg: ModelConfiguration = ModelConfiguration(),
                         p_cfg: ProblemConfiguration = ProblemConfiguration(),
                         cfg_path: Optional[Path] = None,
@@ -67,6 +68,49 @@ def smape(target, samples):
     return np.mean(np.where(s == 0,
                             0,
                             2 * np.abs(samples - target) / s))
+@app.command()
+def small(dataset_path: str, cfg: ModelConfiguration = ModelConfiguration(),
+          p_cfg: ProblemConfiguration = ProblemConfiguration()):
+    dataset = DataSet.from_csv(dataset_path, FullData)
+    frequency = get_frequency(dataset)
+    model_template = TorchModelTemplate(p_cfg)
+    cfg.context_length = 12 if frequency == 'M' else 38
+    n_locations = len(dataset.locations())
+    n_time_steps = cfg.batch_size//n_locations+1
+    total_length = (cfg.context_length+p_cfg.prediction_length+n_time_steps-1)
+
+    dataset_subset = DataSet({location: d[-total_length:] for location, d in dataset.items()},
+                             dataset.polygons)
+
+    if p_cfg.replace_zeros:
+        for location, group in dataset_subset.items():
+            group.disease_cases[group.disease_cases == 0] = np.nan
+
+    dataset_subset = filter_dataset(dataset_subset, p_cfg.prediction_length)
+    cfg.batch_size = len(dataset_subset.locations())*n_time_steps
+
+    print(dataset_subset)
+    results = []
+    cfg.weight_decay = 0
+    cfg.dropout = 0
+    cfg.learning_rate = 0.001
+    cfg.max_epochs = 10000
+    cfg.n_layers = 2
+    cfg.embedding_type = 'concat'
+    cfg.embed_dim = 4
+    cfg.n_hidden = 8
+    for n_layers in range(1, 9):
+        for _ in range(1):
+            cfg.num_rnn_layers = n_layers
+            estimator = model_template.get_model(cfg)
+            estimator.train(dataset_subset)
+            results.append((n_layers, estimator.last_train_loss.detach().numpy()))
+    print('Results:')
+    for n_layers, loss in results:
+        print(f'Layers: {n_layers}, Loss: {loss}')
+    a = np.array(results)
+    px.scatter(x=a[:, 0], y=a[:, 1], title='Number of layers vs loss').show()
+
 
 
 @app.command()
@@ -161,7 +205,7 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list, 
 
 def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
     dataset = DataSet.from_csv(dataset_path, FullData)
-    frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
+    frequency = get_frequency(dataset)
     n_test_sets = 12 if frequency == 'M' else 52
     n_test_sets = int(n_test_sets * year_fraction)
     kwargs = get_kwargs(frequency)
@@ -174,6 +218,10 @@ def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
         dataset, _ = train_test_generator(dataset, prediction_length=removed_periods, n_test_sets=1)
     # validate_dataset(dataset, lag=12)
     return dataset, n_test_sets
+
+
+def get_frequency(dataset):
+    return 'M' if isinstance(dataset.period_range[0], Month) else 'W'
 
 
 def main():

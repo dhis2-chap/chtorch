@@ -32,11 +32,20 @@ class CountTransform(ABC):
                    title=f"Correlation between original and returned values for {self.__class__.__name__}").show()
 
 
+class IdentityTransform(CountTransform):
+    def forward(self, numerator: float, denominator: float) -> float:
+        return numerator
+
+    def inverse(self, transformed: float, denominator: float) -> float:
+        return transformed
+
+
 class Log1pTransform(CountTransform):
     def forward(self, numerator: float, denominator: float) -> float:
         return np.log1p(numerator)
 
     def inverse(self, transformed: float, denominator: float) -> float:
+        #return self.xp.log(1+self.xp.exp(transformed) - 1) + self.xp.log(denominator
         return self.xp.exp(transformed)
 
 

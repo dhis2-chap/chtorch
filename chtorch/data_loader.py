@@ -3,7 +3,8 @@ import numpy as np
 
 
 class TSDataSet(torch.utils.data.Dataset):
-    def __init__(self, X, y, population, context_length, prediction_length, parents=None, indices=None,
+    def __init__(self, X, y, population, context_length,
+                 prediction_length, parents=None, indices=None,
                  augmentations=None, transformer=None):
         if y is not None:
             assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
@@ -74,9 +75,13 @@ class TSDataSet(torch.utils.data.Dataset):
 
 class FlatTSDataSet(TSDataSet):
     def __len__(self):
+        if self.indices is not None:
+            return len(self.indices)
         return (len(self.X) - self.total_length + 1) * self.X.shape[1]
 
     def __getitem__(self, item):
+        if self.indices is not None:
+            item = self.indices[item]
         i, j = divmod(item, self.X.shape[1])
         x = self.X[i:i + self.context_length, j]
         x = self._transform_x(x)

@@ -18,14 +18,19 @@ from chtorch.module import RNNWithLocationEmbedding, FlatRNN, RNNConfiguration
 from chtorch.tensorifier import Tensorifier
 import lightning as L
 
+logger = logging.getLogger(__name__)
+
 
 class ModelConfiguration(RNNConfiguration):
     weight_decay: float = 1e-6
     max_epochs: int | None = None
+    learning_rate: float = 1e-3
+    batch_size: int = 64
     context_length: int = 12
     use_population: bool = True
     features: list[str] = ['rainfall', 'mean_temperature']
     augmentations: list[str] = []
+
 
 class ProblemConfiguration(BaseModel):
     prediction_length: int = 3
@@ -35,6 +40,7 @@ class ProblemConfiguration(BaseModel):
     validate: bool = False
     validation_splits: int = 5
     validation_index: int = 4
+
 
 class ModelBase:
     problem_configuration: ProblemConfiguration
@@ -101,8 +107,8 @@ class Predictor(ModelBase):
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
         historic_tensor = historic_tensor.astype(np.float32)
-        #tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
-        #historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
+        # tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
+        # historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
         _DataSet = TSDataSet if not self.is_flat else FlatTSDataSet
         ts_dataset = _DataSet(historic_tensor, None, population, self.context_length, self.prediction_length, parents,
                               transformer=self.transformer)
@@ -153,6 +159,7 @@ class Estimator(ModelBase):
         self.model_configuration = model_configuration
         self.tensorifier = self._get_tensorifier()
         self.loss = self._get_loss_class()(count_transform=self.count_transform)
+        self.n_params = None
         if self.max_epochs is None:
             self.max_epochs = 2500 // self.context_length
 
@@ -166,15 +173,14 @@ class Estimator(ModelBase):
             train_dataset.add_augmentation(get_augmentation(augmentation))
         assert len(train_dataset.n_categories) == train_dataset[0][1].shape[
             -1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
-        batch_size = 64 if self.is_flat else 8
         loader = torch.utils.data.DataLoader(train_dataset,
-                                             batch_size=batch_size,
+                                             batch_size=self.model_configuration.batch_size,
                                              shuffle=True,
                                              drop_last=True,
                                              num_workers=3)
         if self.validate:
             val_loader = torch.utils.data.DataLoader(val_dataset,
-                                                     batch_size=batch_size,
+                                                     batch_size=self.model_configuration.batch_size,
                                                      shuffle=False,
                                                      drop_last=True,
                                                      num_workers=3)
@@ -182,19 +188,21 @@ class Estimator(ModelBase):
         module = Module(train_dataset.n_categories,
                         train_dataset.n_features,
                         prediction_length=self.prediction_length,
-                        output_dim=2+self.problem_configuration.predict_nans,
+                        output_dim=2 + self.problem_configuration.predict_nans,
                         cfg=self.model_configuration)
 
         lightning_module = DeepARLightningModule(
             module,
-            self.loss)
-
+            self.loss,
+            weight_decay=self.model_configuration.weight_decay,
+            learning_rate=self.model_configuration.learning_rate)
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
                             accelerator="cpu")
 
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         self.last_val_loss = lightning_module.last_validation_loss
         self.last_train_loss = lightning_module.last_train_loss
+        print(lightning_module.last_train_losses)
         return self.predictor_cls(module,
                                   PredictorInfo(
                                       problem_configuration=self.problem_configuration,
@@ -211,12 +219,15 @@ class Estimator(ModelBase):
         n_splits = self.problem_configuration.validation_splits
         split = self.problem_configuration.validation_index
         split = split + n_splits
-        n_splits = n_splits*2
-        validation_start = int(len(train_dataset) * float(split)/n_splits)
+        n_splits = n_splits * 2
+        validation_start = int(len(train_dataset) * float(split) / n_splits)
         validation_indices = list(range(validation_start, len(train_dataset)))
         training_indices = list(range(validation_start))
+        logger.info(
+            f"Splitting dataset into {len(training_indices)} training and {len(validation_indices)} validation samples based on {split + 1}/{n_splits}")
         val_dataset = train_dataset.subset(validation_indices)
         train_dataset = train_dataset.subset(training_indices)
+        logger.info(f"Train dataset: {len(train_dataset)} samples, validation dataset: {len(val_dataset)} samples")
         return train_dataset, val_dataset
 
     def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
@@ -227,7 +238,7 @@ class Estimator(ModelBase):
         array_dataset, population, parents = self.tensorifier.convert(data)
         transformer = StandardScaler()
         input_features = array_dataset.shape[-1]
-        transformed_dataset = transformer.fit_transform(array_dataset.reshape(-1, input_features))
+        transformer.fit_transform(array_dataset.reshape(-1, input_features))
         X = array_dataset.reshape(array_dataset.shape).astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
         if self.problem_configuration.replace_zeros:

@@ -3,7 +3,9 @@ import torch.nn as nn
 from typing import Literal
 import logging
 from pydantic import BaseModel
+
 logger = logging.getLogger(__name__)
+
 
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, n_layers, dropout=0.0):
@@ -66,7 +68,7 @@ class RNNWithLocationEmbedding(nn.Module):
 
         self.decoder = nn.GRU(1, cfg.n_hidden, num_layers=cfg.num_rnn_layers, batch_first=True)
 
-        self.output_decoder = nn.Linear(cfg.n_hidden+cfg.output_embedding_dim, cfg.n_hidden)
+        self.output_decoder = nn.Linear(cfg.n_hidden + cfg.output_embedding_dim, cfg.n_hidden)
         self.ouput_layer = MLP(cfg.n_hidden, cfg.n_hidden, self.output_dim, cfg.n_layers, dropout=cfg.dropout)
         self.output_embedding = nn.Embedding(num_categories[0], cfg.output_embedding_dim)
         self.prediction_length = prediction_length
@@ -122,8 +124,9 @@ class FlatRNN(RNNWithLocationEmbedding):
         return decoded.reshape(batch_size, self.prediction_length, self.output_dim)
 
     def _encode(self, locations, x):
-        assert all(locations[..., i].max()<num_cat for i, num_cat in enumerate(self.num_categories)), \
-            ([locations[..., i].max() for i in range(len(self.num_categories))], self.num_categories, locations[..., -1])
+        assert all(locations[..., i].max() < num_cat for i, num_cat in enumerate(self.num_categories)), \
+            (
+            [locations[..., i].max() for i in range(len(self.num_categories))], self.num_categories, locations[..., -1])
         loc_embeds = sum(embedding(locations[..., i]) for i, embedding in enumerate(self.location_embeddings))
         if self.embedding_type == 'sum':
             x_rnn = self.preprocess(x)
@@ -213,7 +216,6 @@ def main_flat():
 
     # Forward pass
     output = model(x, locations)
-
 
 
 if __name__ == '__main__':

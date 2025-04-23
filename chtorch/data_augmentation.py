@@ -52,9 +52,9 @@ class MaskingAugmentation(Augmentation):
         x, *rest = data
         x = x.copy()
         mask = np.random.rand(len(x) - 1) < self.mask_prob
-        x[1:, ..., -2][mask] = True
-        x[1:, ..., -1][mask] = np.nan
-        x[1:, ..., -1] = interpolate_nans(x[1:, ..., -1])
+        x[1:, ..., -3][mask] = True
+        x[1:, ..., -2][mask] = np.nan
+        x[1:, ..., -2] = interpolate_nans(x[:, ..., -2])[1:]
 
 @register_augmentation
 class ScalingAugmentation(Augmentation):
@@ -70,5 +70,6 @@ class ScalingAugmentation(Augmentation):
         y = np.floor(y*scale)
         population = np.floor(population*scale)
         x = x.copy()
-        x[..., -1] = x[..., -1]+log_scale
+        x[..., -1] = x[..., -1] + log_scale
+        x[..., -2] = x[..., -2] * scale
         return x, *_, y, population
