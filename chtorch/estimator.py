@@ -36,6 +36,7 @@ class ModelConfiguration(RNNConfiguration):
 class ProblemConfiguration(BaseModel):
     prediction_length: int = 3
     replace_zeros: bool = False
+    replace_nans: bool = False
     predict_nans: bool = False
     debug: bool = False
     validate: bool = False
@@ -208,7 +209,8 @@ class Estimator(ModelBase):
 
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
                             accelerator="cpu")
-        #tuner = Tuner(trainer)
+        # tuner = Tuner(trainer)
+        # trainer.tune()
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
         self.last_val_loss = lightning_module.last_validation_loss
         self.last_train_loss = lightning_module.last_train_loss

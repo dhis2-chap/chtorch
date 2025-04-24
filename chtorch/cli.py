@@ -28,6 +28,14 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 app = App()
 
+def adapt_dataset(dataset, problem_configuration):
+    for location, group in dataset.items():
+        if problem_configuration.replace_zeros:
+            group.disease_cases[group.disease_cases == 0] = np.nan
+        elif problem_configuration.replace_nans:
+            group.disease_cases[np.isnan(group.disease_cases)] = 0
+    return dataset
+
 
 @app.command()
 def validation_training(dataset_path: str,
@@ -36,6 +44,7 @@ def validation_training(dataset_path: str,
                         cfg_path: Optional[Path] = None,
     ):
     dataset = DataSet.from_csv(dataset_path, FullData)
+    dataset = adapt_dataset(dataset, p_cfg)
     frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
     dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
     p_cfg.validate = True
@@ -68,6 +77,7 @@ def smape(target, samples):
     return np.mean(np.where(s == 0,
                             0,
                             2 * np.abs(samples - target) / s))
+
 @app.command()
 def small(dataset_path: str, cfg: ModelConfiguration = ModelConfiguration(),
           p_cfg: ProblemConfiguration = ProblemConfiguration()):
@@ -93,13 +103,13 @@ def small(dataset_path: str, cfg: ModelConfiguration = ModelConfiguration(),
     results = []
     cfg.weight_decay = 0
     cfg.dropout = 0
-    cfg.learning_rate = 0.001
+    cfg.learning_rate = 0.01
     cfg.max_epochs = 10000
     cfg.n_layers = 2
     cfg.embedding_type = 'concat'
     cfg.embed_dim = 4
     cfg.n_hidden = 8
-    for n_layers in range(1, 9):
+    for n_layers in range(1, 2):
         for _ in range(1):
             cfg.num_rnn_layers = n_layers
             estimator = model_template.get_model(cfg)
@@ -147,6 +157,7 @@ def evaluate(dataset_path: str,
     >>> main_function()
     '''
     dataset, n_test_sets = _get_dataset(dataset_path, frequency, remove_last_year, year_fraction)
+    dataset = adapt_dataset(dataset, p_cfg)
     frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
     if cfg_path:
         model_configuration = ModelConfiguration.parse_file(cfg_path)

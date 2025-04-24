@@ -47,10 +47,11 @@ class DeepARLightningModule(L.LightningModule):
         return loss
 
     def _debug(self, batch_idx, loss, y):
-        y_tmp = y.detach()
-        min_loss = PoissonLoss(IdentityTransform()).forward(y_tmp[..., None], y_tmp, y_tmp).mean()
-        #print(min_loss.mean())
-        print(f"Batch {batch_idx} loss: {loss.item()}, min_loss: {min_loss.mean()} n values: {len(y_tmp)}")
+        with torch.no_grad():
+            y_tmp = y.detach()
+            min_loss = PoissonLoss(IdentityTransform()).forward(y_tmp[..., None], y_tmp, y_tmp).mean()
+            # print(min_loss.mean())
+            print(f"Batch {batch_idx} loss: {loss.item()}, min_loss: {min_loss.mean()} n values: {len(y_tmp)}")
 
     def validation_step(self, batch, batch_idx):
         X, locations, y, population = batch
