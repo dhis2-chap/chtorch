@@ -11,7 +11,7 @@ from chap_core.data import DataSet
 from chap_core.datatypes import FullData
 
 
-def main(dataset):
+def grid_search(dataset):
     # using grid search
     param_grid = {
         "weight_decay": [4, 8, 16, 32],
@@ -68,13 +68,13 @@ def main(dataset):
 
 # using optuna
 def objective(trial, dataset):
-    wd = trial.suggest_loguniform("weight_decay", 1e-8, 1e-3)
-    nh = trial.suggest_categorical("n_hidden", [4, 8, 16, 32])
-    me = trial.suggest_categorical("max_epochs", [2, 3])
-    cl = trial.suggest_categorical("context_length", [7, 10, 12, 15, 20])
-    ed = trial.suggest_categorical("embed_dim", [2, 4, 8])
-    nrl = trial.suggest_categorical("num_rnn_layers", [4, 8, 16, 32])
-    nl = trial.suggest_categorical("n_layers", [4, 8, 16, 32])
+    wd = trial.suggest_float("weight_decay", 1e-8, 1e-3, log=True)
+    nh = trial.suggest_int("n_hidden", 4, 32)
+    me = trial.suggest_int("max_epochs", 2, 3)
+    cl = trial.suggest_int("context_length", 7, 20)
+    ed = trial.suggest_int("embed_dim", 2, 8)
+    nrl = trial.suggest_int("num_rnn_layers", 4, 32)
+    nl = trial.suggest_int("n_layers", 4, 32)
 
     prob_config = ProblemConfiguration(replace_zeros=True)
     model_config = ModelConfiguration(weight_decay=wd,
@@ -113,6 +113,6 @@ if __name__ == "__main__":
     #path = input("Dataset path: ")
     import sys
     path = sys.argv[1]
-    n_trials= int(sys.argv[2]) if len(sys.argv) > 2 else 10
+    n_trials= int(sys.argv[2]) if len(sys.argv) > 2 else 20 # 10
     output_name = 'model_config_optuna.json'
     optuna_search(path, n_trials, output_name)
