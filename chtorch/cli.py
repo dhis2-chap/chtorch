@@ -1,5 +1,4 @@
 """Console script for chtorch."""
-import itertools
 import plotly.express as px
 import subprocess
 from datetime import datetime
@@ -18,6 +17,7 @@ from chap_core.time_period import Month
 
 from chtorch.hpo import HPOConfiguration, HPOModelTemplate
 from chtorch.model_template import TorchModelTemplate
+from chtorch.problem_adaptions import adapt_dataset
 from chtorch.validation import filter_dataset
 from cyclopts import App
 
@@ -28,21 +28,13 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 app = App()
 
-def adapt_dataset(dataset, problem_configuration):
-    for location, group in dataset.items():
-        if problem_configuration.replace_zeros:
-            group.disease_cases[group.disease_cases == 0] = np.nan
-        elif problem_configuration.replace_nans:
-            group.disease_cases[np.isnan(group.disease_cases)] = 0
-    return dataset
-
 
 @app.command()
 def validation_training(dataset_path: str,
                         cfg: ModelConfiguration = ModelConfiguration(),
                         p_cfg: ProblemConfiguration = ProblemConfiguration(),
                         cfg_path: Optional[Path] = None,
-    ):
+                        ):
     dataset = DataSet.from_csv(dataset_path, FullData)
     dataset = adapt_dataset(dataset, p_cfg)
     frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
@@ -78,6 +70,7 @@ def smape(target, samples):
                             0,
                             2 * np.abs(samples - target) / s))
 
+
 @app.command()
 def small(dataset_path: str, cfg: ModelConfiguration = ModelConfiguration(),
           p_cfg: ProblemConfiguration = ProblemConfiguration()):
@@ -86,8 +79,8 @@ def small(dataset_path: str, cfg: ModelConfiguration = ModelConfiguration(),
     model_template = TorchModelTemplate(p_cfg)
     cfg.context_length = 12 if frequency == 'M' else 38
     n_locations = len(dataset.locations())
-    n_time_steps = cfg.batch_size//n_locations+1
-    total_length = (cfg.context_length+p_cfg.prediction_length+n_time_steps-1)
+    n_time_steps = cfg.batch_size // n_locations + 1
+    total_length = (cfg.context_length + p_cfg.prediction_length + n_time_steps - 1)
 
     dataset_subset = DataSet({location: d[-total_length:] for location, d in dataset.items()},
                              dataset.polygons)
@@ -97,7 +90,7 @@ def small(dataset_path: str, cfg: ModelConfiguration = ModelConfiguration(),
             group.disease_cases[group.disease_cases == 0] = np.nan
 
     dataset_subset = filter_dataset(dataset_subset, p_cfg.prediction_length)
-    cfg.batch_size = len(dataset_subset.locations())*n_time_steps
+    cfg.batch_size = len(dataset_subset.locations()) * n_time_steps
 
     print(dataset_subset)
     results = []
@@ -120,7 +113,6 @@ def small(dataset_path: str, cfg: ModelConfiguration = ModelConfiguration(),
         print(f'Layers: {n_layers}, Loss: {loss}')
     a = np.array(results)
     px.scatter(x=a[:, 0], y=a[:, 1], title='Number of layers vs loss').show()
-
 
 
 @app.command()
@@ -158,6 +150,7 @@ def evaluate(dataset_path: str,
     '''
     dataset, n_test_sets = _get_dataset(dataset_path, frequency, remove_last_year, year_fraction)
     dataset = adapt_dataset(dataset, p_cfg)
+    dataset.plot_aggregate()
     frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
     if cfg_path:
         model_configuration = ModelConfiguration.parse_file(cfg_path)
@@ -204,7 +197,8 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list, 
         new_list = []
         for p in predictions_list:
             p.set_polygons(dataset.polygons)
-            new_list.append(p.aggregate_to_parent(field_name='samples', nan_indicator=None if predict_nans else 'disease_cases'))
+            new_list.append(
+                p.aggregate_to_parent(field_name='samples', nan_indicator=None if predict_nans else 'disease_cases'))
         a_predictions_list = new_list
         a_response = samples_to_evaluation_response(
             a_predictions_list,
@@ -227,7 +221,6 @@ def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
     dataset = filter_dataset(dataset, unused_periods)
     if remove_last_year:
         dataset, _ = train_test_generator(dataset, prediction_length=removed_periods, n_test_sets=1)
-    # validate_dataset(dataset, lag=12)
     return dataset, n_test_sets
 
 

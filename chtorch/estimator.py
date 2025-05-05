@@ -19,25 +19,52 @@ from chtorch.target_scaler import TargetScaler
 from chtorch.tensorifier import Tensorifier
 import lightning as L
 from pytorch_lightning.tuner.tuning import Tuner
+
 logger = logging.getLogger(__name__)
 
 
+# How should we handle configurations that depend on others
+# Hierarchical, default values 0
 class ModelConfiguration(RNNConfiguration):
+    """Should be composition not inheritance"""
+
+    # Very technical hp
     weight_decay: float = 1e-6
     max_epochs: int | None = None
     learning_rate: float = 1e-3
     batch_size: int = 64
+    augmentations: list[str] = []
+
+    # Human understandable hp
     context_length: int = 12
     use_population: bool = True
-    features: list[str] = ['rainfall', 'mean_temperature']
-    augmentations: list[str] = []
+
+    # Population density?
+    features: list[str] = [
+        'rainfall',
+        'mean_temperature']
+
+    # What are other interpretable hp?
+    # How to interpret the missing values
+    # How to account for seasonality
+
+    # Possible flags
+    # use_covid_mask
+    # use_neighbours
+    #  - max_neighbours
+    #  - regularization
+
+    # Choose transformation type
+    # log_count/log_rate
+    # scaling type
+
 
 
 class ProblemConfiguration(BaseModel):
     prediction_length: int = 3
     replace_zeros: bool = False
     replace_nans: bool = False
-    predict_nans: bool = False
+    predict_nans: bool = False # This can also be a model configuration
     debug: bool = False
     validate: bool = False
     validation_splits: int = 5
@@ -72,7 +99,7 @@ class Predictor(ModelBase):
     def __init__(self, module,
                  predictor_info: PredictorInfo,
                  transformer: StandardScaler,
-                 target_scaler = None):
+                 target_scaler=None):
         super().__init__()
         problem_configuration = predictor_info.problem_configuration
         model_configuration = predictor_info.model_configuration
@@ -121,7 +148,7 @@ class Predictor(ModelBase):
             eta = self.module(*instance)
             if self._target_scaler is not None:
                 eta = self._target_scaler.scale_by_location(instance[1][:, 0, 0], eta)
-        samples = self._loss_class.get_dist(eta, population, self.count_transform).sample((100,))
+        samples = self._loss_class.get_dist(eta, population, self.count_transform).sample((1000,))
         output = {}
         period_range = future_data.period_range
 
@@ -260,4 +287,5 @@ class Estimator(ModelBase):
         assert len(X) == len(y)
         train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.prediction_length, parents,
                                       transformer=transformer)
+        train_dataset = train_dataset.empty_removed()
         return train_dataset, transformer, target_scaler

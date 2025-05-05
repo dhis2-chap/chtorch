@@ -100,9 +100,11 @@ class Tensorifier:
         population = smooth_population(location_data.population)
         population_column = np.log(population)
         cases = location_data.disease_cases
+
         if self.replace_zeros:
             zero_mask = cases == 0
             cases = np.where(zero_mask, np.nan, cases)
+
         target_column = interpolate_nans(cases)
         target_column = self.count_transform.forward(target_column, population)
         na_mask = np.isnan(cases)
@@ -112,6 +114,7 @@ class Tensorifier:
                          target_column]
         if self.use_population:
             extra_columns.append(population_column)
+
         return np.array(
             feature_columns + extra_columns).T, population
 

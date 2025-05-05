@@ -38,11 +38,17 @@ class TSDataSet(torch.utils.data.Dataset):
     def n_features(self):
         return self.X.shape[-1]
 
+    def empty_removed(self):
+        non_empty_indices = [i for i in range(len(self)) if not np.isnan(self[i][2]).all()]
+        return self.subset(non_empty_indices)
+
     def subset(self, indices):
         """
         Return a subset of the dataset with the given indices.
         """
-        assert self.indices is None, "Cannot subset a dataset that has already been subsetted."
+        #assert self.indices is None, "Cannot subset a dataset that has already been subsetted."
+        if self.indices is not None:
+            indices = np.asanyarray(self.indices)[indices]
         return self.__class__(self.X, self.y, self.population, self.context_length, self.prediction_length,
                               parents=self.parents, indices=indices, augmentations=self.augmentations,
                               transformer=self.transformer)
@@ -90,7 +96,10 @@ class FlatTSDataSet(TSDataSet):
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         p = self.parents[j]
         locations = np.array([(j, p) for _ in range(self.context_length)])
-        return x, locations, y, population
+        output = x, locations, y, population
+        for augmentation in self.augmentations:
+            output = augmentation.transform(output)
+        return output
 
     def last_prediction_instance(self):
         last_population = self.population[-1:].T
@@ -116,9 +125,13 @@ class MultiDataset(torch.utils.data.Dataset):
         self._category_offsets = np.cumsum([0] + [dataset.n_categories[0] for dataset in datasets])
         self._len = sum(lens)
         self._extra_len = (main_dataset_weight - 1) * lens[0]
+        self.augmentations = []
 
     def __str__(self):
         return f"MultiDataset: {self.n_datasets} datasets, {self._len} samples, {self.n_features} features and {self.n_categories} categories. "
+
+    def add_augmentation(self, augmentation):
+        self.augmentations.append(augmentation)
 
     @property
     def n_categories(self):
@@ -139,7 +152,10 @@ class MultiDataset(torch.utils.data.Dataset):
         locations[:, 1] = dataset_idx
         # assert all(i<n for i, n in zip(np.max(locations, axis=0), self.n_categories)), \
         #    f"Locations {locations} exceed categories {self.n_categories}"
-        return x, locations, y, population
+        output = x, locations, y, population
+        for augmentation in self.augmentations:
+            output = augmentation.transform(output)
+        return output
 
     def _split_index(self, item):
         if item >= self._len:

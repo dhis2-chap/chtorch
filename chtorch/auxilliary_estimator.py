@@ -4,6 +4,7 @@ from sklearn.preprocessing import StandardScaler
 
 from chtorch.data_loader import TSDataSet, MultiDataset
 from chtorch.estimator import Estimator, Predictor
+from chtorch.target_scaler import MultiTargetScaler
 
 
 class AuxilliaryPredictor(Predictor):
@@ -22,9 +23,11 @@ class AuxilliaryEstimator(Estimator):
 
     def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
         """Convert the data to a format suitable for training."""
-        datasets = [self._get_single_transformed_dataset(dataset)[0]
-                    for dataset in self._auxilliary_datasets.values()]
+        tuples = [self._get_single_transformed_dataset(dataset) for dataset in self._auxilliary_datasets.values()]
+        datasets = [t[0] for t in tuples]
+
         main_dataset, transformer, target_scaler = super()._get_transformed_dataset(data)
+        target_scaler = MultiTargetScaler([target_scaler] + [t[-1] for t in tuples])
         datasets = [main_dataset] + datasets
         multi_dataset = MultiDataset(datasets, main_dataset_weight=10)
         return multi_dataset, transformer, target_scaler

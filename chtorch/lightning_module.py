@@ -43,7 +43,8 @@ class DeepARLightningModule(L.LightningModule):
             log_rate = eta
         loss = self.loss(log_rate, y, population)
         self.last_train_losses[batch_idx] = loss
-        self.log("train_loss", loss, prog_bar=True, logger=True)
+        if batch_idx == 0:
+            self.log("train_loss", self.last_train_loss, prog_bar=True, logger=True)
         return loss
 
     def _debug(self, batch_idx, loss, y):
@@ -65,7 +66,6 @@ class DeepARLightningModule(L.LightningModule):
 
     def configure_optimizers(self):
         decay_dict = self._get_decay_dict()
-
         optimizer = optim.AdamW(decay_dict, lr=self.learning_rate)
         logger.info('Using learning rate %s', self.learning_rate)
         return optimizer
