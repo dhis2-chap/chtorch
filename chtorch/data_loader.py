@@ -1,5 +1,9 @@
+from collections import namedtuple
+
 import torch
 import numpy as np
+
+Entry = namedtuple('Entry', ['X', 'locations', 'y', 'population'])
 
 
 class TSDataSet(torch.utils.data.Dataset):
@@ -46,7 +50,7 @@ class TSDataSet(torch.utils.data.Dataset):
         """
         Return a subset of the dataset with the given indices.
         """
-        #assert self.indices is None, "Cannot subset a dataset that has already been subsetted."
+        # assert self.indices is None, "Cannot subset a dataset that has already been subsetted."
         if self.indices is not None:
             indices = np.asanyarray(self.indices)[indices]
         return self.__class__(self.X, self.y, self.population, self.context_length, self.prediction_length,
@@ -58,7 +62,7 @@ class TSDataSet(torch.utils.data.Dataset):
             return len(self.indices)
         return len(self.X) - self.total_length + 1
 
-    def __getitem__(self, i) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def __getitem__(self, i) -> Entry:
         if self.indices is not None:
             i = self.indices[i]
         x = self.X[i:i + self.context_length]
@@ -69,7 +73,7 @@ class TSDataSet(torch.utils.data.Dataset):
         output = x, self.locations, y, population
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
-        return output
+        return Entry(*output)
 
     def last_prediction_instance(self):
         last_population = self.population[-1]
@@ -85,7 +89,7 @@ class FlatTSDataSet(TSDataSet):
             return len(self.indices)
         return (len(self.X) - self.total_length + 1) * self.X.shape[1]
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> Entry:
         if self.indices is not None:
             item = self.indices[item]
         i, j = divmod(item, self.X.shape[1])
@@ -99,7 +103,7 @@ class FlatTSDataSet(TSDataSet):
         output = x, locations, y, population
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
-        return output
+        return Entry(*output)
 
     def last_prediction_instance(self):
         last_population = self.population[-1:].T
@@ -155,7 +159,7 @@ class MultiDataset(torch.utils.data.Dataset):
         output = x, locations, y, population
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
-        return output
+        return Entry(*output)
 
     def _split_index(self, item):
         if item >= self._len:
