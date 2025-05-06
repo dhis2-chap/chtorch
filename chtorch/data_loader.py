@@ -3,7 +3,7 @@ from collections import namedtuple
 import torch
 import numpy as np
 
-Entry = namedtuple('Entry', ['X', 'locations', 'y', 'population'])
+Entry = namedtuple('Entry', ['X', 'locations', 'y', 'population', 'past_y'])
 
 
 class TSDataSet(torch.utils.data.Dataset):
@@ -67,13 +67,14 @@ class TSDataSet(torch.utils.data.Dataset):
             i = self.indices[i]
         x = self.X[i:i + self.context_length]
         y = self.y[i + self.context_length:i + self.total_length]
+        past_y = self.y[i:i + self.context_length]
         population = self.population[i + self.context_length:i + self.total_length]
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         x = self._transform_x(x)
         output = x, self.locations, y, population
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
-        return Entry(*output)
+        return Entry(*output, past_y)
 
     def last_prediction_instance(self):
         last_population = self.population[-1]
@@ -96,6 +97,7 @@ class FlatTSDataSet(TSDataSet):
         x = self.X[i:i + self.context_length, j]
         x = self._transform_x(x)
         y = self.y[i + self.context_length:i + self.total_length, j]
+        past_y = self.y[i:i + self.context_length, j]
         population = self.population[i + self.context_length:i + self.total_length, j]
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         p = self.parents[j]
@@ -103,7 +105,7 @@ class FlatTSDataSet(TSDataSet):
         output = x, locations, y, population
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
-        return Entry(*output)
+        return Entry(*output, past_y)
 
     def last_prediction_instance(self):
         last_population = self.population[-1:].T
@@ -150,7 +152,7 @@ class MultiDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, item):
         dataset_idx, new_idx = self._split_index(item)
-        x, locations, y, population = self.datasets[dataset_idx][new_idx]
+        x, locations, y, population, past_y = self.datasets[dataset_idx][new_idx]
         locations = locations.copy()
         locations[:, 0] += self._category_offsets[dataset_idx]
         locations[:, 1] = dataset_idx

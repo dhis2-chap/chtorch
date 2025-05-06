@@ -28,7 +28,7 @@ class MaskedNANLoss(abc.ABC, nn.Module):
         #print(torch.max(eta[..., 1]), torch.min(eta[..., 1]))
         na_mask = ~torch.isnan(y_true)
         y_true = y_true[na_mask]
-        population = population[na_mask]
+        #population = population[na_mask]
         eta = eta[na_mask]
         nb_dist = self.get_dist(eta, population, self._count_transform)
         loss = -nb_dist.log_prob(y_true).mean()

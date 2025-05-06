@@ -145,7 +145,7 @@ class Predictor(ModelBase):
                               transformer=self.transformer)
         *instance, population = ts_dataset.last_prediction_instance()
         with torch.no_grad():
-            eta = self.module(*instance)
+            eta, *_ = self.module(*instance)
             if self._target_scaler is not None:
                 eta = self._target_scaler.scale_by_location(instance[1][:, 0, 0], eta)
         samples = self._loss_class.get_dist(eta, population, self.count_transform).sample((1000,))

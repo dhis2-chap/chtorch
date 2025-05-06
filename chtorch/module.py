@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 import torch
 import torch.nn as nn
 from typing import Literal
@@ -27,6 +29,7 @@ class MLP(nn.Module):
         x = self.output_layer(x)
         return x
 
+Output = namedtuple('Output', ['eta', 'past_eta'])
 
 class RNNConfiguration(BaseModel):
     rnn_type: Literal['GRU', 'LSTM'] = 'GRU'
@@ -107,21 +110,32 @@ class RNNWithLocationEmbedding(nn.Module):
 class FlatRNN(RNNWithLocationEmbedding):
 
     def forward(self, x, locations):
+        offset_time = True
         batch_size, time_steps, feature_dim = x.shape
-
+        total_length = self.prediction_length + time_steps - 1
         # Embed locations: (batch, time, location) -> (batch, time, location, 4)
         x_rnn = self._encode(locations, x)
 
         # Pass through RNN
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
-        dummy_input = torch.zeros(batch_size, self.prediction_length, 1)
+
+        dummy_input = torch.zeros(batch_size, self.prediction_length-offset_time, 1)
         decoded, _ = self.decoder(dummy_input, end_state)
-        output_embedding = self.output_embedding(locations[..., 0])[..., :self.prediction_length, :]
+        #print(decoded.shape, end_state.shape, rnn_out.shape)
+        if offset_time:
+            decoded = torch.cat([rnn_out, decoded], dim=1)
+        embedding = self.output_embedding(locations[..., 0])
+        output_embedding = torch.concat([embedding[..., 1:, :],
+                                         embedding[..., :self.prediction_length, :]], axis=-2)
         decoded = torch.cat([decoded, output_embedding], dim=-1)
         decoded = self.output_decoder(decoded)
         decoded = nn.ReLU()(decoded)
         decoded = self.ouput_layer(decoded)
-        return decoded.reshape(batch_size, self.prediction_length, self.output_dim)
+
+        reshaped = decoded.reshape(batch_size, total_length, self.output_dim)
+
+        return (reshaped[:, -self.prediction_length:].squeeze(-1),
+                reshaped[:, :-self.prediction_length].squeeze(-1))
 
     def _encode(self, locations, x):
         assert all(locations[..., i].max() < num_cat for i, num_cat in enumerate(self.num_categories)), \

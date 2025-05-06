@@ -36,12 +36,15 @@ class DeepARLightningModule(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         #X, locations, y, population = batch
-        eta = self.module(batch.X, batch.locations).squeeze(-1)
+        eta, past_eta = self.module(batch.X, batch.locations)
         if self._target_scaler is not None:
             log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], eta)
+            past_log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], past_eta)
         else:
             log_rate = eta
-        loss = self.loss(log_rate, batch.y, batch.population)
+            past_log_rate = past_eta
+        #print(log_rate.shape, batch.y.shape, batch.population.shape, past_log_rate.shape, batch.past_y.shape)
+        loss = self.loss(log_rate, batch.y, batch.population) + 0.2*self.loss(past_log_rate, batch.past_y[:, 1:], batch.population)
         self.last_train_losses[batch_idx] = loss
         if batch_idx == 0:
             self.log("train_loss", self.last_train_loss, prog_bar=True, logger=True)
@@ -56,7 +59,7 @@ class DeepARLightningModule(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         #X, locations, y, population = batch
-        log_rate = self.module(batch.X, batch.locations).squeeze(-1)
+        log_rate, *_ = self.module(batch.X, batch.locations)
         if self._target_scaler is not None:
             log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], log_rate)
         loss = self.loss(log_rate, batch.y, batch.population)
