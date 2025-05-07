@@ -21,6 +21,8 @@ class DeepARLightningModule(L.LightningModule):
         self.last_validation_losses = {}
         self.last_train_losses = {}
         self._target_scaler = target_scaler
+        self._accumulated_validation_loss = 0
+        self.save_hyperparameters('weight_decay', 'learning_rate')
 
     @property
     def last_validation_loss(self):
@@ -46,8 +48,7 @@ class DeepARLightningModule(L.LightningModule):
         #print(log_rate.shape, batch.y.shape, batch.population.shape, past_log_rate.shape, batch.past_y.shape)
         loss = self.loss(log_rate, batch.y, batch.population) + 0.2*self.loss(past_log_rate, batch.past_y[:, 1:], batch.population)
         self.last_train_losses[batch_idx] = loss
-        if batch_idx == 0:
-            self.log("train_loss", self.last_train_loss, prog_bar=True, logger=True)
+        self.log("train_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
         return loss
 
     def _debug(self, batch_idx, loss, y):
@@ -59,12 +60,16 @@ class DeepARLightningModule(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         #X, locations, y, population = batch
+        if batch_idx == 0:
+            self._accumulated_validation_loss = 0
         log_rate, *_ = self.module(batch.X, batch.locations)
         if self._target_scaler is not None:
             log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], log_rate)
         loss = self.loss(log_rate, batch.y, batch.population)
+        self._accumulated_validation_loss += loss
         self.last_validation_losses[batch_idx] = loss
-        self.log("validation_loss", loss, prog_bar=True, logger=True, on_step=False)
+        #mean_loss = self._accumulated_validation_loss / (batch_idx + 1)
+        self.log("validation_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
         return loss
 
     def configure_optimizers(self):
@@ -96,4 +101,5 @@ class DeepARLightningModule(L.LightningModule):
             {"params": level_2_decay, "weight_decay": self.weight_decay * 100},
             {"params": no_decay, "weight_decay": 0.0}
         ]
+        logger.info(f"Decay params: {len(decay)}, embed: {len(embed_decay)}, level_2: {len(level_2_decay)}, no decay: {len(no_decay)}")
         return decay_dict

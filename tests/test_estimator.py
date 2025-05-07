@@ -3,13 +3,14 @@ from chap_core.assessment.prediction_evaluator import evaluate_model
 from chap_core.climate_predictor import QuickForecastFetcher
 
 from chtorch.auxilliary_estimator import AuxilliaryEstimator
+from chtorch.cli import run_validation_training
 from chtorch.estimator import Estimator, ModelConfiguration, ProblemConfiguration
 from chtorch.hpo import HPOConfiguration, HPOEstimator
 
 
 @pytest.fixture
 def model_configuration():
-    return ModelConfiguration(context_length=12)
+    return ModelConfiguration(context_length=12, direct_ar=True)
 
 
 @pytest.fixture
@@ -33,6 +34,10 @@ def test_estimator(ch_dataset, model_configuration, problem_configuration):
                    n_test_sets=3,
                    weather_provider=QuickForecastFetcher)
 
+@pytest.mark.parametrize('problem_configuration',
+                         [ProblemConfiguration(prediction_length=3, debug=True, predict_nans=v) for v in [False]])#, False]])
+def test_validation(ch_dataset, model_configuration, problem_configuration):
+    run_validation_training(ch_dataset, model_configuration, problem_configuration)
 
 def test_hpo_estimator(ch_dataset, hpo_model_configuration, problem_configuration):
     estimator = HPOEstimator(problem_configuration, hpo_model_configuration)

@@ -35,17 +35,28 @@ def validation_training(dataset_path: str,
                         p_cfg: ProblemConfiguration = ProblemConfiguration(),
                         cfg_path: Optional[Path] = None,
                         ):
-    dataset = DataSet.from_csv(dataset_path, FullData)
+    dataset = DataSet.from_csv(dataset_path)#, FullData)
     dataset = adapt_dataset(dataset, p_cfg)
-    frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
+    frequency = get_frequency(dataset)
     dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
     p_cfg.validate = True
     p_cfg.validation_splits = 3
     p_cfg.validation_index = 2
     if cfg_path is not None:
         cfg = ModelConfiguration.parse_file(cfg_path)
+
+    run_validation_training(dataset, cfg, p_cfg)
+
+
+def run_validation_training(dataset, cfg, p_cfg):
+    p_cfg.validate = True
+    frequency = get_frequency(dataset)
+    train_dataset, validation_generator = train_test_generator(
+        dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
+    validation_dataset = next(validation_generator)[-1]
     estimator = Estimator(model_configuration=cfg, problem_configuration=p_cfg)
-    estimator.train(dataset)
+    estimator.add_validation(validation_dataset)
+    estimator.train(train_dataset)
     logger.info(estimator.last_val_loss)
 
 
@@ -162,7 +173,7 @@ def evaluate(dataset_path: str,
     estimator = model_template.get_model(model_configuration)
     predictions_list = list(backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
                                      n_test_sets=n_test_sets, stride=1,
-                                     weather_provider=QuickForecastFetcher))
+                                     weather_provider=None))
     _write_output(dataset, dataset_path, model_configuration, predictions_list, p_cfg.predict_nans)
 
 
@@ -209,7 +220,7 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list, 
 
 
 def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
-    dataset = DataSet.from_csv(dataset_path, FullData)
+    dataset = DataSet.from_csv(dataset_path)
     frequency = get_frequency(dataset)
     n_test_sets = 12 if frequency == 'M' else 52
     n_test_sets = int(n_test_sets * year_fraction)
@@ -221,6 +232,7 @@ def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
     dataset = filter_dataset(dataset, unused_periods)
     if remove_last_year:
         dataset, _ = train_test_generator(dataset, prediction_length=removed_periods, n_test_sets=1)
+    print(dataset)
     return dataset, n_test_sets
 
 

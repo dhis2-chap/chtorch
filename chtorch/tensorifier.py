@@ -51,6 +51,9 @@ def smooth_population(population: np.ndarray) -> np.ndarray:
 
 @dataclass
 class Tensorifier:
+    """
+    This class converts a dataset into tensors wich all have time index as first index and location index as second index.
+    """
     features: list[str]
     count_transform: CountTransform
     replace_zeros: bool = False
@@ -73,6 +76,7 @@ class Tensorifier:
         self.count_transform.__class__(np).plot_correlation(y, population)
 
     def convert(self, data: DataSet) -> np.ndarray:
+
         matrices = []
         populations = []
         for name, value in data.items():
@@ -104,8 +108,11 @@ class Tensorifier:
         if self.replace_zeros:
             zero_mask = cases == 0
             cases = np.where(zero_mask, np.nan, cases)
-
-        target_column = interpolate_nans(cases)
+        if np.all(np.isnan(cases)):
+            logger.warning(f"All cases are NaN for cases len {len(cases)}")
+            target_column = np.zeros_like(cases)
+        else:
+            target_column = interpolate_nans(cases)
         target_column = self.count_transform.forward(target_column, population)
         na_mask = np.isnan(cases)
         extra_columns = [year_position,

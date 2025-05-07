@@ -59,12 +59,11 @@ class ModelConfiguration(RNNConfiguration):
     # scaling type
 
 
-
 class ProblemConfiguration(BaseModel):
     prediction_length: int = 3
     replace_zeros: bool = False
     replace_nans: bool = False
-    predict_nans: bool = False # This can also be a model configuration
+    predict_nans: bool = False  # This can also be a model configuration
     debug: bool = False
     validate: bool = False
     validation_splits: int = 5
@@ -195,13 +194,23 @@ class Estimator(ModelBase):
         self.n_params = None
         if self.max_epochs is None:
             self.max_epochs = 2500 // self.context_length
+        self._validation_dataset = None
 
     def train(self, data: DataSet):
         assert self.is_flat, "non-Flat model is deprecated"
-        DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
-        train_dataset, transformer, target_scaler = self._get_transformed_dataset(data)
         if self.validate:
-            train_dataset, val_dataset = self._split_validation(train_dataset)
+            val_periods = {period.id for period in self._validation_dataset.period_range}
+            logger.info(f'Validation dataset has period range: {self._validation_dataset.period_range}')
+            data_periods = {period.id for period in data.period_range}
+
+            assert len(data_periods.intersection(
+                val_periods)) == 0, f"Validation periods {val_periods} overlap with training periods {data_periods}"
+            assert self._validation_dataset is not None, 'Validation dataset is not set'
+
+        DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
+        train_dataset, transformer, target_scaler, val_dataset = self._get_transformed_dataset(data,
+                                                                                               self._validation_dataset)
+        # train_dataset, val_dataset = self._split_validation(train_dataset)
 
         for augmentation in self.model_configuration.augmentations:
             train_dataset.add_augmentation(get_augmentation(augmentation))
@@ -218,7 +227,7 @@ class Estimator(ModelBase):
             val_loader = torch.utils.data.DataLoader(val_dataset,
                                                      batch_size=self.model_configuration.batch_size,
                                                      shuffle=False,
-                                                     drop_last=True,
+                                                     drop_last=False,
                                                      num_workers=3)
 
         module = Module(train_dataset.n_categories,
@@ -251,6 +260,9 @@ class Estimator(ModelBase):
                                   transformer,
                                   target_scaler=target_scaler)
 
+    def add_validation(self, val_dataset: DataSet):
+        self._validation_dataset = val_dataset
+
     def _split_validation(self, train_dataset):
         '''
         This needs to be done somewhere else. Per now there is some overlap in the prediction periods
@@ -270,22 +282,46 @@ class Estimator(ModelBase):
         logger.info(f"Train dataset: {len(train_dataset)} samples, validation dataset: {len(val_dataset)} samples")
         return train_dataset, val_dataset
 
-    def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
+    def _get_transformed_dataset(self, data, validation_dataset=None) -> tuple[TSDataSet, StandardScaler]:
         """Convert the data to a format suitable for training."""
-        return self._get_single_transformed_dataset(data)
+        return self._get_single_transformed_dataset(data, validation_dataset)
 
-    def _get_single_transformed_dataset(self, data):
+    def _get_single_transformed_dataset(self, data: DataSet, validation_dataset: DataSet | None = None) -> tuple[
+        TSDataSet, StandardScaler, TargetScaler]:
         array_dataset, population, parents = self.tensorifier.convert(data)
         transformer = StandardScaler()
         input_features = array_dataset.shape[-1]
         transformer.fit_transform(array_dataset.reshape(-1, input_features))
-        X = array_dataset.reshape(array_dataset.shape).astype(np.float32)
+        X = array_dataset.astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
         target_scaler = TargetScaler(self.count_transform.forward(y, population))
+
         if self.problem_configuration.replace_zeros:
             y = np.where(y == 0, np.nan, y)
+
         assert len(X) == len(y)
+
         train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.prediction_length, parents,
                                       transformer=transformer)
+        if validation_dataset is not None:
+            val_array_dataset, val_population, _ = self.tensorifier.convert(validation_dataset)
+            val_X = val_array_dataset.astype(np.float32)
+            val_y = np.array([series.disease_cases for series in validation_dataset.values()]).T
+            full_X = np.concatenate([X[-self.context_length:], val_X], axis=0)
+            full_y = np.concatenate([y[-self.context_length:], val_y], axis=0)
+            full_population = np.concatenate([population[-self.context_length:], val_population], axis=0)
+            val_dataset = FlatTSDataSet(
+                full_X, full_y, full_population,
+                self.context_length,
+                self.prediction_length, parents,
+                transformer=transformer)
+            true_length = (len(validation_dataset.period_range) - self.prediction_length + 1) * len(
+                validation_dataset.locations())
+            assert len(val_dataset) == true_length, (
+            len(val_dataset), len(validation_dataset.period_range), self.prediction_length)
+            val_dataset = val_dataset.empty_removed()
+        else:
+            val_dataset = None
+
         train_dataset = train_dataset.empty_removed()
-        return train_dataset, transformer, target_scaler
+        return train_dataset, transformer, target_scaler, val_dataset
