@@ -29,11 +29,11 @@ class ModelConfiguration(RNNConfiguration):
     """Should be composition not inheritance"""
 
     # Very technical hp
-    weight_decay: float = 1e-6
-    max_epochs: int | None = None
-    learning_rate: float = 1e-3
-    batch_size: int = 64
-    augmentations: list[str] = []
+    weight_decay: float = 1e-6 #Regularization
+    max_epochs: int | None = None # Training
+    learning_rate: float = 1e-3 # Training/Convergence
+    batch_size: int = 64 # Training/Convergence
+    augmentations: list[str] = [] # Regularization
 
     # Human understandable hp
     context_length: int = 12

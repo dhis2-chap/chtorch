@@ -218,6 +218,17 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list, 
         with open(f'{stem}_evaluation_aggregated_{run_id}.json', 'w') as f:
             f.write(a_response.json())
 
+@app.command()
+def hp_investigation(dataset_path: str, p_cfg: ProblemConfiguration = ProblemConfiguration()):
+    dataset = DataSet.from_csv(dataset_path)
+    for max_dim in reversed((16, 32, 64, 128)):
+        model_configuration = ModelConfiguration()
+        model_configuration.max_dim = max_dim
+        model_configuration.max_epochs = 100
+        run_validation_training(dataset, model_configuration, p_cfg)
+
+
+
 
 def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
     dataset = DataSet.from_csv(dataset_path)

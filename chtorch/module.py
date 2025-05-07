@@ -65,16 +65,16 @@ Output = namedtuple('Output', ['eta', 'past_eta'])
 
 class RNNConfiguration(BaseModel):
     rnn_type: Literal['GRU', 'LSTM'] = 'GRU'
-    embed_dim: int = 4
-    num_rnn_layers: int = 1
-    n_layers: int = 1
+    embed_dim: int = 4 # Must be same as n_hidden
+    num_rnn_layers: int = 1 # Capacity
+    n_layers: int = 1 # Not in use
     embedding_type: Literal['sum', 'concat'] = 'concat'
-    n_hidden: int = 4
-    max_dim: int = 32
-    state_dim: int = 4
-    output_embedding_dim: int = 0
-    dropout: float = 0.0
-    direct_ar: bool = False
+    n_hidden: int = 4 # Capacity
+    max_dim: int = 32 # Capacity
+    state_dim: int = 4 # Capacity
+    output_embedding_dim: int = 0 # Capacity
+    dropout: float = 0.0 # Regulatization
+    direct_ar: bool = False # Convergence
 
 
 class RNNWithLocationEmbedding(nn.Module):

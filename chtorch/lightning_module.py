@@ -22,6 +22,7 @@ class DeepARLightningModule(L.LightningModule):
         self.last_train_losses = {}
         self._target_scaler = target_scaler
         self._accumulated_validation_loss = 0
+
         self.save_hyperparameters('weight_decay', 'learning_rate')
 
     @property
