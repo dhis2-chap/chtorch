@@ -5,6 +5,7 @@ import torch
 from torch import optim
 import logging
 
+from chtorch.configuration import ModelConfiguration
 from chtorch.count_transforms import IdentityTransform
 from chtorch.distribution_loss import PoissonLoss
 
@@ -12,18 +13,16 @@ logger = logging.getLogger(__name__)
 
 
 class DeepARLightningModule(L.LightningModule):
-    def __init__(self, module, loss, target_scaler=None, weight_decay=1e-6, learning_rate=1e-3):
+    def __init__(self, module, loss, target_scaler=None, cfg: ModelConfiguration=None):
         super().__init__()
         self.module = module
         self.loss = loss
-        self.weight_decay = weight_decay
-        self.learning_rate = learning_rate
+        self.weight_decay = cfg.weight_decay
+        self.learning_rate = cfg.learning_rate
         self.last_validation_losses = {}
         self.last_train_losses = {}
         self._target_scaler = target_scaler
-        self._accumulated_validation_loss = 0
-
-        self.save_hyperparameters('weight_decay', 'learning_rate')
+        self.save_hyperparameters(cfg.dict())
 
     @property
     def last_validation_loss(self):
@@ -56,11 +55,9 @@ class DeepARLightningModule(L.LightningModule):
         with torch.no_grad():
             y_tmp = y.detach()
             min_loss = PoissonLoss(IdentityTransform()).forward(y_tmp[..., None], y_tmp, y_tmp).mean()
-            # print(min_loss.mean())
             print(f"Batch {batch_idx} loss: {loss.item()}, min_loss: {min_loss.mean()} n values: {len(y_tmp)}")
 
     def validation_step(self, batch, batch_idx):
-        #X, locations, y, population = batch
         if batch_idx == 0:
             self._accumulated_validation_loss = 0
         log_rate, *_ = self.module(batch.X, batch.locations)
@@ -69,7 +66,6 @@ class DeepARLightningModule(L.LightningModule):
         loss = self.loss(log_rate, batch.y, batch.population)
         self._accumulated_validation_loss += loss
         self.last_validation_losses[batch_idx] = loss
-        #mean_loss = self._accumulated_validation_loss / (batch_idx + 1)
         self.log("validation_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
         return loss
 

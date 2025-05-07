@@ -7,7 +7,8 @@ from chap_core import ModelTemplateInterface
 from chap_core.datatypes import FullData
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 
-from chtorch.estimator import ProblemConfiguration, ModelConfiguration, Estimator
+from chtorch.estimator import Estimator
+from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 import logging
 
 logger = logging.getLogger(__name__)

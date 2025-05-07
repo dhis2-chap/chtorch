@@ -4,7 +4,8 @@ from chap_core.climate_predictor import QuickForecastFetcher
 
 from chtorch.auxilliary_estimator import AuxilliaryEstimator
 from chtorch.cli import run_validation_training
-from chtorch.estimator import Estimator, ModelConfiguration, ProblemConfiguration
+from chtorch.estimator import Estimator
+from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 from chtorch.hpo import HPOConfiguration, HPOEstimator
 
 

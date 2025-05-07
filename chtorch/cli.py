@@ -21,7 +21,8 @@ from chtorch.problem_adaptions import adapt_dataset
 from chtorch.validation import filter_dataset
 from cyclopts import App
 
-from chtorch.estimator import Estimator, ModelConfiguration, ProblemConfiguration
+from chtorch.estimator import Estimator
+from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 import logging
 
 logger = logging.getLogger(__name__)

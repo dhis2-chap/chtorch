@@ -7,67 +7,24 @@ import torch
 from chap_core.data import DataSet
 from chap_core.datatypes import Samples
 
-from chtorch.data_augmentation import PoissonAugmentation, MaskingAugmentation, get_augmentation
+from chtorch.configuration import ModelConfiguration, ProblemConfiguration
+from chtorch.data_augmentation import get_augmentation
 from chtorch.distribution_loss import NegativeBinomialLoss, NBLossWithNaN
 from chtorch.lightning_module import DeepARLightningModule
 from sklearn.preprocessing import StandardScaler
 from pydantic import BaseModel
 from chtorch.count_transforms import Log1pTransform
 from chtorch.data_loader import TSDataSet, FlatTSDataSet
-from chtorch.module import RNNWithLocationEmbedding, FlatRNN, RNNConfiguration
+from chtorch.module import RNNWithLocationEmbedding, FlatRNN
 from chtorch.target_scaler import TargetScaler
 from chtorch.tensorifier import Tensorifier
 import lightning as L
-from pytorch_lightning.tuner.tuning import Tuner
 
 logger = logging.getLogger(__name__)
 
 
 # How should we handle configurations that depend on others
 # Hierarchical, default values 0
-class ModelConfiguration(RNNConfiguration):
-    """Should be composition not inheritance"""
-
-    # Very technical hp
-    weight_decay: float = 1e-6 #Regularization
-    max_epochs: int | None = None # Training
-    learning_rate: float = 1e-3 # Training/Convergence
-    batch_size: int = 64 # Training/Convergence
-    augmentations: list[str] = [] # Regularization
-
-    # Human understandable hp
-    context_length: int = 12
-    use_population: bool = True
-
-    # Population density?
-    features: list[str] = [
-        'rainfall',
-        'mean_temperature']
-
-    # What are other interpretable hp?
-    # How to interpret the missing values
-    # How to account for seasonality
-
-    # Possible flags
-    # use_covid_mask
-    # use_neighbours
-    #  - max_neighbours
-    #  - regularization
-
-    # Choose transformation type
-    # log_count/log_rate
-    # scaling type
-
-
-class ProblemConfiguration(BaseModel):
-    prediction_length: int = 3
-    replace_zeros: bool = False
-    replace_nans: bool = False
-    predict_nans: bool = False  # This can also be a model configuration
-    debug: bool = False
-    validate: bool = False
-    validation_splits: int = 5
-    validation_index: int = 4
 
 
 class ModelBase:
@@ -240,8 +197,7 @@ class Estimator(ModelBase):
             module,
             self.loss,
             target_scaler=target_scaler,
-            weight_decay=self.model_configuration.weight_decay,
-            learning_rate=self.model_configuration.learning_rate)
+            cfg=self.model_configuration)
 
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
                             accelerator="cpu")

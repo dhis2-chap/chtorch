@@ -1,7 +1,8 @@
 import json
 
 from itertools import product
-from chtorch.estimator import Estimator, ProblemConfiguration, ModelConfiguration
+from chtorch.estimator import Estimator
+from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 import logging
 logger = logging.getLogger(__name__)
 from chtorch.hpo import optuna_search

@@ -1,6 +1,6 @@
 import optuna as optuna
 
-from chtorch.estimator import ModelConfiguration
+from chtorch.configuration import ModelConfiguration
 
 
 def suggest_model_config(trial: optuna.Trial,

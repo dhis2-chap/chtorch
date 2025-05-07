@@ -14,7 +14,8 @@ from chap_core.datatypes import FullData
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 import plotly.express as px
 
-from chtorch.estimator import ModelConfiguration, ProblemConfiguration, Estimator
+from chtorch.estimator import Estimator
+from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 
 
 class MonotonicSampler:
