@@ -1,13 +1,15 @@
 import pickle
+import logging
 from dataclasses import dataclass
 from datetime import datetime
+
 from numpydantic import NDArray
 import numpy as np
+from pydantic import BaseModel
+
 from chap_core.datatypes import TimeSeriesData
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 from chap_core.time_period.date_util_wrapper import TimeStamp
-from pydantic import BaseModel
-import logging
 
 from chtorch.count_transforms import CountTransform
 

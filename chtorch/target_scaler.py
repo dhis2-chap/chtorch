@@ -5,8 +5,11 @@ import torch
 class TargetScaler:
     def __init__(self, target_matrix):
         self._mu = torch.from_numpy(np.nanmean(target_matrix, axis=0))
+        self._mu = torch.where(torch.isnan(self._mu), 0, self._mu)
+        assert not np.isnan(self._mu).any(), f"NaN in mu {self._mu}"
         self._std = torch.from_numpy(np.nanstd(target_matrix, axis=0))
-        self._std = torch.where(self._std == 0, 1, self._std)
+        self._std = torch.where((self._std == 0) | torch.isnan(self._std), 1, self._std)
+        assert not torch.isnan(self._std).any(), f"NaN in std {self._std}"
 
     @property
     def mu(self):

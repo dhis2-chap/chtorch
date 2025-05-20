@@ -58,13 +58,16 @@ class DeepARLightningModule(L.LightningModule):
             print(f"Batch {batch_idx} loss: {loss.item()}, min_loss: {min_loss.mean()} n values: {len(y_tmp)}")
 
     def validation_step(self, batch, batch_idx):
-        if batch_idx == 0:
-            self._accumulated_validation_loss = 0
         log_rate, *_ = self.module(batch.X, batch.locations)
+        assert not torch.isnan(log_rate).any()
         if self._target_scaler is not None:
             log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], log_rate)
+        if torch.isnan(log_rate).any():
+            idx = torch.where(torch.isnan(log_rate))
+            print(idx)
+        assert not torch.isnan(log_rate).any(), f"NaN in log_rate {batch.X[idx[0][0]]}"
+
         loss = self.loss(log_rate, batch.y, batch.population)
-        self._accumulated_validation_loss += loss
         self.last_validation_losses[batch_idx] = loss
         self.log("validation_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
         return loss

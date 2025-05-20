@@ -1,9 +1,12 @@
 import logging
-from pathlib import Path
-
+from sklearn.preprocessing import StandardScaler
 from joblib import dump, load
+from pathlib import Path
+import lightning as L
+from pydantic import BaseModel
 import numpy as np
 import torch
+
 from chap_core.data import DataSet
 from chap_core.datatypes import Samples
 
@@ -11,14 +14,14 @@ from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 from chtorch.data_augmentation import get_augmentation
 from chtorch.distribution_loss import NegativeBinomialLoss, NBLossWithNaN
 from chtorch.lightning_module import DeepARLightningModule
-from sklearn.preprocessing import StandardScaler
-from pydantic import BaseModel
+
+
 from chtorch.count_transforms import Log1pTransform
 from chtorch.data_loader import TSDataSet, FlatTSDataSet
 from chtorch.module import RNNWithLocationEmbedding, FlatRNN
 from chtorch.target_scaler import TargetScaler
 from chtorch.tensorifier import Tensorifier
-import lightning as L
+
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +39,7 @@ class ModelBase:
 
     def _get_tensorifier(self):
         return Tensorifier(
-            self.model_configuration.features,
+            self.model_configuration.additional_covariates,
             Log1pTransform(),
             self.problem_configuration.replace_zeros,
             use_population=self.model_configuration.use_population)
@@ -71,16 +74,19 @@ class Predictor(ModelBase):
         self._loss_class = self._get_loss_class()
         self._target_scaler = target_scaler
 
-    def save(self, path: Path):
+    def save(self, path: Path| str):
+        path = Path(path)
+
         torch.save(self.module.state_dict(), path)
         dump(self.transformer, path.with_suffix('.transformer'))
         with open(path.with_suffix('.predictor_info.json'), 'w') as f:
             f.write(self._predictor_info.model_dump_json())
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path: str | Path):
+        path = Path(path)
         predictor_info = PredictorInfo.parse_file(path.with_suffix('.predictor_info.json'))
-        module = RNNWithLocationEmbedding(
+        module = FlatRNN(
             num_categories=predictor_info.n_categories,
             input_feature_dim=predictor_info.n_features,
             prediction_length=predictor_info.problem_configuration.prediction_length,
@@ -132,6 +138,10 @@ model_config = ModelConfiguration(weight_decay=1e-6,
 class Estimator(ModelBase):
     is_flat = True
     predictor_cls = Predictor
+
+    @property
+    def covariate_names(self):
+        return self.model_configuration.additional_covariates + ['population']
 
     def __init__(self,
                  problem_configuration: ProblemConfiguration,
@@ -237,6 +247,10 @@ class Estimator(ModelBase):
         train_dataset = train_dataset.subset(training_indices)
         logger.info(f"Train dataset: {len(train_dataset)} samples, validation dataset: {len(val_dataset)} samples")
         return train_dataset, val_dataset
+
+    @classmethod
+    def load_predictor(cls, path: Path | str):
+        return Predictor.load(path)
 
     def _get_transformed_dataset(self, data, validation_dataset=None) -> tuple[TSDataSet, StandardScaler]:
         """Convert the data to a format suitable for training."""
