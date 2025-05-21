@@ -45,7 +45,6 @@ class DeepARLightningModule(L.LightningModule):
         else:
             log_rate = eta
             past_log_rate = past_eta
-        #print(log_rate.shape, batch.y.shape, batch.population.shape, past_log_rate.shape, batch.past_y.shape)
         loss = self.loss(log_rate, batch.y, batch.population) + 0.2*self.loss(past_log_rate, batch.past_y[:, 1:], batch.population)
         self.last_train_losses[batch_idx] = loss
         self.log("train_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
@@ -62,10 +61,6 @@ class DeepARLightningModule(L.LightningModule):
         assert not torch.isnan(log_rate).any()
         if self._target_scaler is not None:
             log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], log_rate)
-        if torch.isnan(log_rate).any():
-            idx = torch.where(torch.isnan(log_rate))
-            print(idx)
-        assert not torch.isnan(log_rate).any(), f"NaN in log_rate {batch.X[idx[0][0]]}"
 
         loss = self.loss(log_rate, batch.y, batch.population)
         self.last_validation_losses[batch_idx] = loss

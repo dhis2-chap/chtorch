@@ -19,7 +19,6 @@ class TargetScaler:
     def std(self):
         return self._std
 
-
     def scale_by_location(self, locations, eta):
         """
         Scale the eta values by the mean and standard deviation of the target matrix for each location.

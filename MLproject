@@ -1,0 +1,124 @@
+allow_free_additional_continuous_covariates: true
+meta_data:
+  author: Unknown Author
+  citation_info: null
+  contact_email: null
+  description: No Description yet
+  display_name: No Display Name yet
+  organization: null
+  organization_logo_url: null
+name: default
+required_covariates:
+- population
+supported_period_type: any
+target: disease_cases
+user_options:
+  additional_covariates:
+    default:
+    - rainfall
+    - mean_temperature
+    items:
+      type: string
+    title: Additional Covariates
+    type: array
+  augmentations:
+    default: []
+    items:
+      type: string
+    title: Augmentations
+    type: array
+  batch_size:
+    default: 64
+    title: Batch Size
+    type: integer
+  context_length:
+    default: 12
+    title: Context Length
+    type: integer
+  direct_ar:
+    default: false
+    title: Direct Ar
+    type: boolean
+  dropout:
+    default: 0.0
+    title: Dropout
+    type: number
+  embed_dim:
+    default: 4
+    title: Embed Dim
+    type: integer
+  embedding_type:
+    default: concat
+    enum:
+    - sum
+    - concat
+    title: Embedding Type
+    type: string
+  learning_rate:
+    default: 0.001
+    title: Learning Rate
+    type: number
+  max_dim:
+    default: 32
+    title: Max Dim
+    type: integer
+  max_epochs:
+    anyOf:
+    - type: integer
+    - type: 'null'
+    default: null
+    title: Max Epochs
+  n_hidden:
+    default: 4
+    title: N Hidden
+    type: integer
+  n_layers:
+    default: 1
+    title: N Layers
+    type: integer
+  num_rnn_layers:
+    default: 1
+    title: Num Rnn Layers
+    type: integer
+  output_embedding_dim:
+    default: 0
+    title: Output Embedding Dim
+    type: integer
+  rnn_type:
+    default: GRU
+    enum:
+    - GRU
+    - LSTM
+    title: Rnn Type
+    type: string
+  state_dim:
+    default: 4
+    title: State Dim
+    type: integer
+  use_population:
+    default: true
+    title: Use Population
+    type: boolean
+  weight_decay:
+    default: 1.0e-06
+    title: Weight Decay
+    type: number
+
+entry_points:
+  train:
+    command: python main.py train {train_data} {model} {model_config}
+    parameters:
+      train_data: str
+      model: str
+      model_config: str
+  predict:
+    command: python main.py predict {model} {historic_data} {future_data} {out_file}
+      {model_config}
+    parameters:
+      model: str
+      historic_data: str
+      future_data: str
+      out_file: str
+      model_config: str
+python_env: pyenv.yaml
+
