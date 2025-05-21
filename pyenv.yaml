@@ -7,10 +7,10 @@ build_dependencies:
   - wheel==0.37.1
 # Dependencies required to run the project.
 dependencies:
-  - torch
-  - pydantic
-  - lightning
-  - scikit-learn
-  - joblib
+  - torch==2.5.1
+  - pydantic==2.10.5
+  - lightning==2.5.0.post0
+  - scikit-learn==1.6.1
+  - joblib==1.4.2
   - chap_core @ git+https://github.com/dhis2/chap-core.git@934bc46f32571d0e88b5831a7e5024d90a76a548
-  - numpydantic
+  - numpydantic==1.6.8
