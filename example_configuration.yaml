@@ -1,0 +1,3 @@
+additional_continuous_covariates: ['mean_temperature', 'rainfall']
+user_option_values:
+  max_epochs: 2

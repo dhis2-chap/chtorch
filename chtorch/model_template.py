@@ -2,7 +2,7 @@ import numpy as np
 from chap_core import ModelTemplateInterface
 from chap_core.models.model_template_interface import ModelConfiguration as CHAPModelConfiguration
 from chap_core.data.datasets import ISIMIP_dengue_harmonized
-from chap_core.external.model_configuration import ModelTemplateSchema, ModelTemplateConfigCommon
+from chap_core.external.model_configuration import ModelTemplateSchema, ModelTemplateConfigCommon, ModelTemplateMetaData
 from chap_core.models.model_template_interface import InternalModelTemplate
 
 from chtorch.estimator import Estimator
@@ -38,6 +38,15 @@ class TorchModelTemplate:
                          model_configuration=config)
 
 
+
+meta_data = ModelTemplateMetaData(
+    display_name= 'Torch Deep Learning Model',
+    description = "This is a deep learning model template for CHAP. It is based on pytorch and can be used to train and predict using deep learning models. This typically need some configuration to fit the specifics of a dataset",
+    author= "Knut Rand",
+    organization= "UiO",
+    contact_email =  'knutdrand@gmail.com',
+)
+
 class ExposedModelTemplate(ModelTemplateInterface):
     _model_template = TorchModelTemplate(ProblemConfiguration(debug=True))
     model_config_class = ModelConfiguration
@@ -45,7 +54,8 @@ class ExposedModelTemplate(ModelTemplateInterface):
         supported_period_type='any',
         required_covariates=['population'],
         allow_free_additional_continuous_covariates=True,
-        user_options=model_config_class.model_json_schema()['properties']
+        user_options=model_config_class.model_json_schema()['properties'],
+        meta_data=meta_data
     )
 
     def get_schema(self):

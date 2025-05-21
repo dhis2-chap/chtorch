@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from chtorch.module import RNNConfiguration
 
 
-class ModelConfiguration(RNNConfiguration):
+class ModelConfiguration(RNNConfiguration, extra='forbid'):
     """Should be composition not inheritance"""
     # Very technical hp
     weight_decay: float = 1e-6  # Regularization

@@ -194,7 +194,10 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list, 
         real_case.ou = name_lookup[real_case.ou]
     do_aggregate = True
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    hash = get_commit_hash()
+    try:
+        hash = get_commit_hash()
+    except Exception as e:
+        hash = 'nohash'
     run_id = f'{timestamp}_{hash}'
     filename = f'{stem}_evaluation_{run_id}.json'
     with open(filename, 'w') as f:
@@ -210,7 +213,7 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list, 
         for p in predictions_list:
             p.set_polygons(dataset.polygons)
             new_list.append(
-                p.aggregate_to_parent(field_name='samples', nan_indicator=None if predict_nans else 'disease_cases'))
+                p.aggregate_to_parent(field_name='samples', nan_indicator=None))# if predict_nans else 'disease_cases'))
         a_predictions_list = new_list
         a_response = samples_to_evaluation_response(
             a_predictions_list,
