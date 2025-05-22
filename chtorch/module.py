@@ -195,53 +195,6 @@ class FlatRNN(RNNWithLocationEmbedding):
         return x_rnn
 
 
-class SeparatedRNNWithLocationEmbedding(nn.Module):
-    def __init__(self, num_locations,
-                 input_feature_dim,
-                 hidden_dim,
-                 prediction_length=3, n_ar_columns=4):
-        super().__init__()
-        assert False
-        embed_dim = 3
-        self.location_embedding = nn.Embedding(num_locations, embed_dim)  # Embedding layer
-        init_dim = input_feature_dim + embed_dim - n_ar_columns
-        self.hidden_dim = hidden_dim
-        self.preprocess = nn.Linear(init_dim, hidden_dim)
-        self.rnn = nn.GRU(hidden_dim, hidden_dim, batch_first=True)
-        self.decoder = nn.GRU(1, hidden_dim, batch_first=True)
-        self.output_dim = 2
-        self.output_decoder = nn.Linear(hidden_dim, hidden_dim)
-        self.ouput_layer = nn.Linear(hidden_dim, self.output_dim)
-
-        self.prediction_length = prediction_length
-
-    def forward(self, x, locations):
-        """
-        x: (batch, time, location, features)
-        locations: (batch, time, location) - location indices
-        """
-        batch_size, time_steps, num_locations, feature_dim = x.shape
-        # Embed locations: (batch, time, location) -> (batch, time, location, 4)
-        loc_embeds = self.location_embedding(locations)
-
-        # Concatenate features with location embeddings
-        x_with_loc = torch.cat([x, loc_embeds], dim=-1)  # (batch, time, location, feature_dim + 4)
-        x_with_loc = x_with_loc.swapaxes(1, 2)  # (batch, location, time, feature_dim + 4
-
-        # Reshape for RNN: merge location into feature dimension
-        x_rnn = x_with_loc.reshape(batch_size * num_locations, time_steps,
-                                   -1)  # (batch, time, location * (feature_dim + 4))
-        x_rnn = self.preprocess(x_rnn)
-        x_rnn = nn.ReLU()(x_rnn)
-        # Pass through RNN
-        rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
-        dummy_input = torch.zeros(batch_size * num_locations, self.prediction_length, 1)
-        decoded, _ = self.decoder(dummy_input, end_state)
-        decoded = self.output_decoder(decoded)
-        decoded = nn.ReLU()(decoded)
-        decoded = self.ouput_layer(decoded)
-        return decoded.reshape(batch_size, num_locations, self.prediction_length, self.output_dim).swapaxes(1, 2)
-        # return rnn_out.reshape(batch_size, num_locations, time_steps, self.hidden_dim).swapaxes(1, 2)
 
 
 def main():
@@ -257,7 +210,7 @@ def main():
     model = RNNWithLocationEmbedding([num_locations_total], feature_dim, hidden_dim)
 
     # Forward pass
-    output = model(x, locations)
+    model(x, locations)
 
 
 def main_flat():

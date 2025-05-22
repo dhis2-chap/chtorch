@@ -16,6 +16,7 @@ class ModelConfiguration(RNNConfiguration, extra='forbid'):
     additional_covariates: list[str] = [
         'rainfall',
         'mean_temperature']
+    past_ratio: float = 0.2  # Regularization
 
 
 class ProblemConfiguration(BaseModel):

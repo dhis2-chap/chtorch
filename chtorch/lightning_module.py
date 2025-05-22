@@ -21,6 +21,7 @@ class DeepARLightningModule(L.LightningModule):
         self.last_train_losses = {}
         self._target_scaler = target_scaler
         self.save_hyperparameters(cfg.dict())
+        self.cfg = cfg
 
     @property
     def last_validation_loss(self):
@@ -43,9 +44,9 @@ class DeepARLightningModule(L.LightningModule):
         else:
             log_rate = eta
             past_log_rate = past_eta
-        loss = self.loss(log_rate, batch.y, batch.population) + 0.2 * self.loss(past_log_rate,
+        loss = self.loss(log_rate, batch.y, batch.population) + self.cfg.past_ratio * self.loss(past_log_rate,
                                                                                 batch.past_y[:, 1:],
-                                                                                batch.population)
+                                                                                   batch.population)
         self.last_train_losses[batch_idx] = loss
         self.log("train_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
         return loss
