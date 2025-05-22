@@ -11,7 +11,10 @@ from chtorch.hpo import HPOConfiguration, HPOEstimator
 
 @pytest.fixture
 def model_configuration():
-    return ModelConfiguration(context_length=12, direct_ar=True)
+    return ModelConfiguration(context_length=12,
+                              direct_ar=True,
+                              embed_dim=2, n_hidden=2,
+                              state_dim=4, max_dim=8)
 
 
 @pytest.fixture

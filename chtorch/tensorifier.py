@@ -78,7 +78,6 @@ class Tensorifier:
         self.count_transform.__class__(np).plot_correlation(y, population)
 
     def convert(self, data: DataSet) -> np.ndarray:
-
         matrices = []
         populations = []
         for name, value in data.items():

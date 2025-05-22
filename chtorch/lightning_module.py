@@ -45,27 +45,24 @@ class DeepARLightningModule(L.LightningModule):
         else:
             log_rate = eta
             past_log_rate = past_eta
-        loss = self.loss(log_rate, batch.y, batch.population) + 0.2*self.loss(past_log_rate, batch.past_y[:, 1:], batch.population)
+        loss = self.loss(log_rate, batch.y, batch.population) + 0.2 * self.loss(past_log_rate,
+                                                                                batch.past_y[:, 1:],
+                                                                                batch.population)
         self.last_train_losses[batch_idx] = loss
         self.log("train_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
         return loss
 
-    def _debug(self, batch_idx, loss, y):
-        with torch.no_grad():
-            y_tmp = y.detach()
-            min_loss = PoissonLoss(IdentityTransform()).forward(y_tmp[..., None], y_tmp, y_tmp).mean()
-            print(f"Batch {batch_idx} loss: {loss.item()}, min_loss: {min_loss.mean()} n values: {len(y_tmp)}")
-
     def validation_step(self, batch, batch_idx):
-        log_rate, *_ = self.module(batch.X, batch.locations)
-        assert not torch.isnan(log_rate).any()
-        if self._target_scaler is not None:
-            log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], log_rate)
+        with torch.no_grad():
+            log_rate, *_ = self.module(batch.X, batch.locations)
+            assert not torch.isnan(log_rate).any()
+            if self._target_scaler is not None:
+                log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], log_rate)
 
-        loss = self.loss(log_rate, batch.y, batch.population)
-        self.last_validation_losses[batch_idx] = loss
-        self.log("validation_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
-        return loss
+            loss = self.loss(log_rate, batch.y, batch.population)
+            self.last_validation_losses[batch_idx] = loss
+            self.log("validation_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
+            return loss
 
     def configure_optimizers(self):
         decay_dict = self._get_decay_dict()

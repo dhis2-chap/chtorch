@@ -107,7 +107,7 @@ class FlatTSDataSet(TSDataSet):
             output = augmentation.transform(output)
         return Entry(*output, past_y)
 
-    def last_prediction_instance(self):
+    def last_prediction_instance(self) -> Entry:
         last_population = self.population[-1:].T
         repeated_population = np.repeat(last_population, self.prediction_length, axis=1)
         location_row = np.array([self.locations[0].ravel(), self.parents]).T
@@ -116,9 +116,12 @@ class FlatTSDataSet(TSDataSet):
         x = self.X[-self.context_length:, ...].swapaxes(0, 1)
         shape = x.shape
         x = self._transform_x(x.reshape(-1, shape[-1])).reshape(shape)
-        return (torch.from_numpy(x),
-                torch.from_numpy(location),
-                torch.from_numpy(repeated_population))
+        # Entry = namedtuple('Entry', ['X', 'locations', 'y', 'population', 'past_y'])
+        return Entry(torch.from_numpy(x),
+                     torch.from_numpy(location),
+                     None,
+                     torch.from_numpy(repeated_population),
+                     None)
 
 
 class MultiDataset(torch.utils.data.Dataset):

@@ -73,10 +73,10 @@ class Predictor(ModelBase):
         self.count_transform = Log1pTransform()
         self._loss_class = self._get_loss_class()
         self._target_scaler = target_scaler
+        assert target_scaler is not None
 
     def save(self, path: Path| str):
         path = Path(path)
-
         torch.save(self.module.state_dict(), path)
         dump(self.transformer, path.with_suffix('.transformer'))
         with open(path.with_suffix('.predictor_info.json'), 'w') as f:
@@ -100,16 +100,16 @@ class Predictor(ModelBase):
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
         historic_tensor = historic_tensor.astype(np.float32)
-        # tmp = self.transformer.transform(historic_tensor.reshape(-1, historic_tensor.shape[-1]))
-        # historic_tensor = tmp.reshape(historic_tensor.shape).astype(np.float32)
         _DataSet = TSDataSet if not self.is_flat else FlatTSDataSet
         ts_dataset = _DataSet(historic_tensor, None, population, self.context_length, self.prediction_length, parents,
                               transformer=self.transformer)
-        *instance, population = ts_dataset.last_prediction_instance()
+        batch = ts_dataset.last_prediction_instance()
         with torch.no_grad():
-            eta, *_ = self.module(*instance)
+            eta, *_ = self.module(batch.X, batch.locations)
             if self._target_scaler is not None:
-                eta = self._target_scaler.scale_by_location(instance[1][:, 0, 0], eta)
+                locations = batch.locations[:, 0, 0]
+                assert len(np.unique(locations)) == len(locations)
+                eta = self._target_scaler.scale_by_location(locations, eta)
         samples = self._loss_class.get_dist(eta, population, self.count_transform).sample((1000,))
         output = {}
         period_range = future_data.period_range
@@ -168,6 +168,7 @@ class Estimator(ModelBase):
         if self.validate:
             val_periods = {period.id for period in self._validation_dataset.period_range}
             logger.info(f'Validation dataset has period range: {self._validation_dataset.period_range}')
+            logger.info(f'Training dataset has period range: {data.period_range}')
             data_periods = {period.id for period in data.period_range}
 
             assert len(data_periods.intersection(
@@ -175,8 +176,9 @@ class Estimator(ModelBase):
             assert self._validation_dataset is not None, 'Validation dataset is not set'
 
         DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
-        train_dataset, transformer, target_scaler, val_dataset = self._get_transformed_dataset(data,
-                                                                                               self._validation_dataset)
+        train_dataset, transformer, target_scaler, val_dataset = self._get_transformed_dataset(
+            data,
+            self._validation_dataset)
         # train_dataset, val_dataset = self._split_validation(train_dataset)
 
         for augmentation in self.model_configuration.augmentations:
@@ -287,6 +289,7 @@ class Estimator(ModelBase):
                 transformer=transformer)
             true_length = (len(validation_dataset.period_range) - self.prediction_length + 1) * len(
                 validation_dataset.locations())
+            logger.info(f'Validation set has {len(val_dataset)} entries. n_periods = {len(validation_dataset.period_range)}-{self.prediction_length}, n_locations={len(validation_dataset.locations())}')
             assert len(val_dataset) == true_length, (
             len(val_dataset), len(validation_dataset.period_range), self.prediction_length)
             val_dataset = val_dataset.empty_removed()

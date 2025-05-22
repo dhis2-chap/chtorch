@@ -23,6 +23,8 @@ class TargetScaler:
         """
         Scale the eta values by the mean and standard deviation of the target matrix for each location.
         """
+        return eta
+        assert locations.ndim == 1, f"locations should be 1D, got {locations.ndim}"
         mu = self._mu[locations, None]
         std = self._std[locations, None]
         new_eta = eta[..., 0] * std + mu

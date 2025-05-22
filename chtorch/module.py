@@ -102,8 +102,8 @@ class RNNWithLocationEmbedding(nn.Module):
         self.direct_ar = cfg.direct_ar
         if cfg.direct_ar:
             rnn_input_dim += 2
+        self.rnn_input_dim = rnn_input_dim
         if cfg.rnn_type == 'GRU':
-
             self.rnn = nn.GRU(rnn_input_dim, cfg.state_dim, num_layers=cfg.num_rnn_layers, batch_first=True,
                               dropout=cfg.dropout)
         elif cfg.rnn_type == 'LSTM':
@@ -159,9 +159,11 @@ class FlatRNN(RNNWithLocationEmbedding):
         total_length = self.prediction_length + time_steps - 1
         # Embed locations: (batch, time, location) -> (batch, time, location, 4)
         x_rnn = self._encode(locations, x)
+        prev_shape = x_rnn.shape
         if self.direct_ar:
-            x_rnn = torch.cat([x_rnn, x_rnn[..., -3:-1]], dim=-1)
+            x_rnn = torch.cat([x_rnn, x[..., -3:-1]], dim=-1)
         # Pass through RNN
+        #assert False, (x_rnn.shape, self.rnn_input_dim, prev_shape)
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
 
         dummy_input = torch.zeros(batch_size, self.prediction_length - offset_time, 1)
@@ -204,6 +206,7 @@ class SeparatedRNNWithLocationEmbedding(nn.Module):
                  hidden_dim,
                  prediction_length=3, n_ar_columns=4):
         super().__init__()
+        assert False
         embed_dim = 3
         self.location_embedding = nn.Embedding(num_locations, embed_dim)  # Embedding layer
         init_dim = input_feature_dim + embed_dim - n_ar_columns
