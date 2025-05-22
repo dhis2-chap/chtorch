@@ -1,5 +1,4 @@
-from chtorch.configuration import ProblemConfiguration
-from chtorch.model_template import TorchModelTemplate, ExposedModelTemplate
+from chtorch.model_template import ExposedModelTemplate
 
 from chap_core.adaptors.command_line_interface import generate_template_app
 

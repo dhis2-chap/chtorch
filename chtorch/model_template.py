@@ -1,9 +1,7 @@
-import numpy as np
 from chap_core import ModelTemplateInterface
 from chap_core.models.model_template_interface import ModelConfiguration as CHAPModelConfiguration
 from chap_core.data.datasets import ISIMIP_dengue_harmonized
-from chap_core.external.model_configuration import ModelTemplateSchema, ModelTemplateConfigCommon, ModelTemplateMetaData
-from chap_core.models.model_template_interface import InternalModelTemplate
+from chap_core.external.model_configuration import ModelTemplateConfigCommon, ModelTemplateMetaData
 
 from chtorch.estimator import Estimator
 from chtorch.configuration import ModelConfiguration, ProblemConfiguration

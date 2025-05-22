@@ -2,7 +2,6 @@ import dataclasses
 
 import numpy as np
 import plotly.express as px
-from chap_core.data.datasets import ISIMIP_dengue_harmonized
 from chap_core.datatypes import FullData
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 

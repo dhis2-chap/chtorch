@@ -2,7 +2,6 @@ from abc import ABC
 
 import numpy as np
 
-import torch.distributions
 
 from chtorch.tensorifier import interpolate_nans
 

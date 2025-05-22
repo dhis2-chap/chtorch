@@ -196,7 +196,7 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list, 
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     try:
         hash = get_commit_hash()
-    except Exception as e:
+    except Exception:
         hash = 'nohash'
     run_id = f'{timestamp}_{hash}'
     filename = f'{stem}_evaluation_{run_id}.json'

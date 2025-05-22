@@ -6,8 +6,6 @@ from torch import optim
 import logging
 
 from chtorch.configuration import ModelConfiguration
-from chtorch.count_transforms import IdentityTransform
-from chtorch.distribution_loss import PoissonLoss
 
 logger = logging.getLogger(__name__)
 

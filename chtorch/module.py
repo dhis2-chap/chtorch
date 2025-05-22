@@ -157,26 +157,21 @@ class FlatRNN(RNNWithLocationEmbedding):
         offset_time = True
         batch_size, time_steps, feature_dim = x.shape
         total_length = self.prediction_length + time_steps - 1
-        # Embed locations: (batch, time, location) -> (batch, time, location, 4)
         x_rnn = self._encode(locations, x)
-        prev_shape = x_rnn.shape
         if self.direct_ar:
             x_rnn = torch.cat([x_rnn, x[..., -3:-1]], dim=-1)
-        # Pass through RNN
-        #assert False, (x_rnn.shape, self.rnn_input_dim, prev_shape)
+
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
 
         dummy_input = torch.zeros(batch_size, self.prediction_length - offset_time, 1)
         decoded, _ = self.decoder(dummy_input, end_state)
-        # print(decoded.shape, end_state.shape, rnn_out.shape)
+
         if offset_time:
             decoded = torch.cat([rnn_out, decoded], dim=1)
         embedding = self.output_embedding(locations[..., 0])
         output_embedding = torch.concat([embedding[..., 1:, :],
                                          embedding[..., :self.prediction_length, :]], axis=-2)
         decoded = torch.cat([decoded, output_embedding], dim=-1)
-        #decoded = self.output_decoder(decoded)
-        #decoded = nn.ReLU()(decoded)
         decoded = self.output_layer(decoded)
 
         reshaped = decoded.reshape(batch_size, total_length, self.output_dim)

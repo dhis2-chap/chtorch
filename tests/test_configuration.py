@@ -3,7 +3,6 @@ import yaml
 from pydantic import BaseModel
 
 from chtorch.configuration import ModelConfiguration
-from chtorch.pytorch_forecasting_estimator import MyModel
 
 
 @pytest.fixture
