@@ -2,6 +2,10 @@ name: torch-deep
 
 meta_data:
   author: Knut Rand
+  author_note: >
+    This model might need configuration of hyperparameters in order to work properly. 
+    When the model shows signs of overfitting, reduce 'state_dim' and/or increase 'dropout' and 'weight_decay'.
+  author_assessed_status: red
   contact_email: knutdrand@gmail.com
   description: >
     This is a deep learning model template for CHAP. It is based on pytorch and can be used to train and predict using deep learning models. 
