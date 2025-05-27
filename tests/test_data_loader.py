@@ -9,10 +9,15 @@ from chtorch.tensorifier import Tensorifier
 def test_data_loader():
     ...
 
+@pytest.fixture()
+def tensorifier(model_configuration):
+    return Tensorifier(
+        Log1pTransform(),
+        config=model_configuration,
+    )
 
 @pytest.fixture
-def flat_dataset(ch_dataset):
-    tensorifier = Tensorifier(['rainfall', 'mean_temperature'], Log1pTransform())
+def flat_dataset(ch_dataset, tensorifier):
     X, population, parents = tensorifier.convert(ch_dataset)
     y = np.array([series.disease_cases for series in ch_dataset.values()]).T
     dataset = FlatTSDataSet(X, y, population, 12, 3, parents=parents)
@@ -20,8 +25,7 @@ def flat_dataset(ch_dataset):
 
 
 @pytest.fixture()
-def ts_dataset(ch_dataset):
-    tensorifier = Tensorifier(['rainfall', 'mean_temperature'], Log1pTransform())
+def ts_dataset(ch_dataset, tensorifier):
     X, population, *_ = tensorifier.convert(ch_dataset)
     y = np.array([series.disease_cases for series in ch_dataset.values()]).T
     dataset = TSDataSet(X, y, population, 12, 3)

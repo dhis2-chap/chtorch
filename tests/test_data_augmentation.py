@@ -1,6 +1,6 @@
 import pytest
 
-from chtorch.data_augmentation import Augmentation, PoissonAugmentation, MaskingAugmentation
+from chtorch.data_augmentation import Augmentation, PoissonAugmentation, MaskingAugmentation, ScalingAugmentation
 from chtorch.data_loader import Entry
 
 
@@ -13,6 +13,6 @@ def sanity_check_agumentation(augmentation: Augmentation, entry: Entry):
         assert elem.shape == new_elem.shape, f"Shape mismatch: {elem.shape} vs {new_elem.shape}"
 
 
-@pytest.mark.parametrize('augmentation', [PoissonAugmentation(), MaskingAugmentation()])
+@pytest.mark.parametrize('augmentation', [PoissonAugmentation(), MaskingAugmentation(), ScalingAugmentation()])
 def test_augmentation_sanity(entry, augmentation):
     sanity_check_agumentation(augmentation, entry)

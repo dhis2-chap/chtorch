@@ -11,7 +11,9 @@ from chap_core.datatypes import TimeSeriesData
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 from chap_core.time_period.date_util_wrapper import TimeStamp
 
+from chtorch.configuration import TensorifierConfig
 from chtorch.count_transforms import CountTransform
+from chtorch.target_based_transforms import has_previous_cases
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +58,8 @@ class Tensorifier:
     """
     This class converts a dataset into tensors wich all have time index as first index and location index as second index.
     """
-    features: list[str]
     count_transform: CountTransform
-    replace_zeros: bool = False
-    use_population: bool = True
+    config: TensorifierConfig
 
     def save(self, path: str):
         with open(path, 'wb') as f:
@@ -72,6 +72,10 @@ class Tensorifier:
             logger.info(f"Loaded tensorifier from {path}")
             return tensorifier
 
+    @property
+    def features(self):
+        return self.config.additional_covariates
+
     def _debug_plot(self, data: DataSet):
         y = np.concatenate([interpolate_nans(location_data.disease_cases) for location_data in data.values()])
         population = np.concatenate([smooth_population(location_data.population) for location_data in data.values()])
@@ -81,6 +85,7 @@ class Tensorifier:
         matrices = []
         populations = []
         for name, value in data.items():
+            logger.info(f"Converting {name} with features {self.features} and population {value.population.shape}")
             m, pop = self._convert_for_location(value)
             matrices.append(m)
             populations.append(pop)
@@ -106,9 +111,6 @@ class Tensorifier:
         population_column = np.log(population)
         cases = location_data.disease_cases
 
-        if self.replace_zeros:
-            zero_mask = cases == 0
-            cases = np.where(zero_mask, np.nan, cases)
         if np.all(np.isnan(cases)):
             logger.warning(f"All cases are NaN for cases len {len(cases)}")
             target_column = np.zeros_like(cases)
@@ -116,11 +118,13 @@ class Tensorifier:
             target_column = interpolate_nans(cases)
         target_column = self.count_transform.forward(target_column, population)
         na_mask = np.isnan(cases)
-        extra_columns = [year_position,
-                         get_covid_mask(location_data.time_period),
-                         na_mask,
-                         target_column]
-        if self.use_population:
+        extra_columns = [year_position]
+        if self.config.mask_covid:
+            extra_columns.append(get_covid_mask(location_data.time_period))
+        if self.config.previous_cases:
+            extra_columns.append(has_previous_cases(cases))
+        extra_columns.extend([na_mask, target_column])
+        if self.config.use_population:
             extra_columns.append(population_column)
 
         return np.array(

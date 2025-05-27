@@ -3,13 +3,13 @@ import plotly.express as px
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Iterable
 
 import numpy as np
 from chap_core.assessment.dataset_splitting import train_test_generator
 from chap_core.assessment.prediction_evaluator import backtest
 from chap_core.climate_predictor import QuickForecastFetcher
-from chap_core.datatypes import FullData
+from chap_core.datatypes import FullData, SamplesWithTruth
 from chap_core.geometry import Polygons
 from chap_core.rest_api_src.worker_functions import samples_to_evaluation_response, dataset_to_datalist
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
@@ -37,15 +37,18 @@ def validation_training(dataset_path: str,
                         cfg_path: Optional[Path] = None,
                         ):
     dataset = DataSet.from_csv(dataset_path)#, FullData)
+    print(dataset.metadata.name)
     dataset = adapt_dataset(dataset, p_cfg)
+    print(dataset.metadata.name)
+    dataset.metadata.name = dataset.metadata.name + '_validation'
     frequency = get_frequency(dataset)
     dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
+
     p_cfg.validate = True
     p_cfg.validation_splits = 3
     p_cfg.validation_index = 2
-    if cfg_path is not None:
-        cfg = ModelConfiguration.parse_file(cfg_path)
 
+    cfg = get_config(cfg, cfg_path)
     run_validation_training(dataset, cfg, p_cfg)
 
 
@@ -143,6 +146,19 @@ def hpo(dataset_path: str,
     _write_output(dataset, dataset_path, model_configuration, predictions_list)
 
 
+def self_backtest(estimator: Estimator,
+             data: DataSet,
+             prediction_length,
+             n_test_sets, stride=1, weather_provider=None) -> Iterable[DataSet]:
+    train, test_generator = train_test_generator(
+        data, prediction_length, n_test_sets, future_weather_provider=weather_provider
+    )
+    predictor = estimator.train(data)
+    for historic_data, future_data, future_truth in test_generator:
+        r = predictor.predict(historic_data, future_data)
+        samples_with_truth = future_truth.merge(r, result_dataclass=SamplesWithTruth)
+        yield samples_with_truth
+
 @app.command()
 def evaluate(dataset_path: str,
              frequency: Literal['M', 'W'] = 'M',
@@ -152,6 +168,7 @@ def evaluate(dataset_path: str,
              cfg_path: Optional[Path] = None,
              aux: bool = False,
              year_fraction: float = 0.5,
+             self_evaluate=False
              ):
     '''
     This function should just be type hinted with common types,
@@ -164,21 +181,30 @@ def evaluate(dataset_path: str,
     dataset = adapt_dataset(dataset, p_cfg)
     dataset.plot_aggregate()
     frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
-    if cfg_path:
-        model_configuration = ModelConfiguration.parse_file(cfg_path)
-    else:
-        model_configuration = cfg
+    model_configuration = get_config(cfg, cfg_path)
     model_template = TorchModelTemplate(p_cfg, auxilliary=aux)
-    cfg.context_length = 12 if frequency == 'M' else 38
+    #cfg.context_length = 12 if frequency == 'M' else 38
 
     estimator = model_template.get_model(model_configuration)
-    predictions_list = list(backtest(estimator, dataset, prediction_length=p_cfg.prediction_length,
-                                     n_test_sets=n_test_sets, stride=1,
-                                     weather_provider=None))
-    _write_output(dataset, dataset_path, model_configuration, predictions_list, p_cfg.predict_nans)
+
+    func = backtest if not self_evaluate else self_backtest
+    predictions_list = list(func(estimator, dataset, prediction_length=p_cfg.prediction_length,
+                              n_test_sets=n_test_sets, stride=1,
+                              weather_provider=None))
+    _write_output(dataset, dataset_path, model_configuration, predictions_list, p_cfg.predict_nans, comment = '' if not self_evaluate else 'self')
 
 
-def _write_output(dataset, dataset_path, model_configuration, predictions_list, predict_nans=False):
+def get_config(cfg, cfg_path):
+    cfg_d = cfg.dict(exclude_unset=True)
+    if cfg_path:
+        model_configuration = ModelConfiguration.parse_file(cfg_path)
+        model_configuration = model_configuration.copy(update=cfg_d)
+    else:
+        model_configuration = cfg
+    return model_configuration
+
+
+def _write_output(dataset, dataset_path, model_configuration, predictions_list, predict_nans=False, comment=''):
     name_lookup = Polygons(dataset.polygons).id_to_name_tuple_dict()
     stem = Path(dataset_path).stem
     score = np.mean([smape(d.disease_cases, d.samples) for p in predictions_list for d in p.values()])
@@ -199,7 +225,7 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list, 
     except Exception:
         hash = 'nohash'
     run_id = f'{timestamp}_{hash}'
-    filename = f'{stem}_evaluation_{run_id}.json'
+    filename = f'{stem}_{comment}evaluation_{run_id}.json'
     with open(filename, 'w') as f:
         f.write(response.json())
     with open(f'{filename}.params.json', 'w') as f:

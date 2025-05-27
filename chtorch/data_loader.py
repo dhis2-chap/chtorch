@@ -71,10 +71,10 @@ class TSDataSet(torch.utils.data.Dataset):
         population = self.population[i + self.context_length:i + self.total_length]
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         x = self._transform_x(x)
-        output = x, self.locations, y, population
+        output = Entry(x, self.locations, y, population, past_y)
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
-        return Entry(*output, past_y)
+        return output
 
     def last_prediction_instance(self):
         last_population = self.population[-1]
@@ -102,10 +102,10 @@ class FlatTSDataSet(TSDataSet):
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         p = self.parents[j]
         locations = np.array([(j, p) for _ in range(self.context_length)])
-        output = x, locations, y, population
+        output = Entry(x, locations, y, population, past_y)
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
-        return Entry(*output, past_y)
+        return output
 
     def last_prediction_instance(self) -> Entry:
         last_population = self.population[-1:].T

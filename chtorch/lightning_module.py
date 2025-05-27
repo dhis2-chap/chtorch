@@ -36,7 +36,6 @@ class DeepARLightningModule(L.LightningModule):
         return self.module(*args, **kwargs)
 
     def training_step(self, batch, batch_idx):
-        #X, locations, y, population = batch
         eta, past_eta = self.module(batch.X, batch.locations)
         if self._target_scaler is not None:
             log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], eta)

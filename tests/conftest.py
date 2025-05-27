@@ -11,6 +11,7 @@ from chap_core.assessment.dataset_splitting import (
 from gluonts.dataset.repository import get_dataset
 import pytest
 
+from chtorch.configuration import ModelConfiguration
 from chtorch.data_loader import Entry
 
 
@@ -22,6 +23,11 @@ def electricity_dataset():
 @pytest.fixture
 def ch_dataset():
     return ISIMIP_dengue_harmonized['vietnam']
+
+@pytest.fixture()
+def model_configuration():
+    return ModelConfiguration(context_length=12)
+
 
 @pytest.fixture
 def train_test(ch_dataset):
@@ -44,9 +50,10 @@ def auxilliary_datasets(data_path):
 @pytest.fixture()
 def entry():
     random_fun = lambda shape: np.random.rand(prod(shape)).reshape(shape)
-    X = random_fun((4, 3, 2))
-    y = random_fun((4, 3))
-    locations = random_fun((4, 3, 2))
+    X = random_fun((4, 3, 5))
+    y = random_fun((2, 3))
+    past_y = random_fun((4, 3))
+    locations = random_fun((4, 3))
     population = random_fun((4, 3))
-    return Entry(X, locations, y, population, None)
+    return Entry(X, locations, y, population, past_y=y[0:1])
 

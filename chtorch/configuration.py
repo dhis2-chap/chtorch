@@ -3,7 +3,14 @@ from pydantic import BaseModel
 from chtorch.module import RNNConfiguration
 
 
-class ModelConfiguration(RNNConfiguration, extra='forbid'):
+class TensorifierConfig(BaseModel):
+    mask_covid: bool = True
+    previous_cases: bool = False
+    additional_covariates: list[str] = ['rainfall', 'mean_temperature']
+    use_population: bool = True
+
+
+class ModelConfiguration(RNNConfiguration, TensorifierConfig, extra='forbid'):
     """Should be composition not inheritance"""
     # Very technical hp
     weight_decay: float = 1e-6  # Regularization
@@ -12,10 +19,6 @@ class ModelConfiguration(RNNConfiguration, extra='forbid'):
     batch_size: int = 64  # Training/Convergence
     augmentations: list[str] = []  # Regularization
     context_length: int = 12
-    use_population: bool = True
-    additional_covariates: list[str] = [
-        'rainfall',
-        'mean_temperature']
     past_ratio: float = 0.2  # Regularization
 
 

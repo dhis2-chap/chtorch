@@ -1,4 +1,6 @@
 import logging
+
+from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.preprocessing import StandardScaler
 from joblib import dump, load
 from pathlib import Path
@@ -15,19 +17,27 @@ from chtorch.data_augmentation import get_augmentation
 from chtorch.distribution_loss import NegativeBinomialLoss, NBLossWithNaN
 from chtorch.lightning_module import DeepARLightningModule
 
-
 from chtorch.count_transforms import Log1pTransform
 from chtorch.data_loader import TSDataSet, FlatTSDataSet
 from chtorch.module import RNNWithLocationEmbedding, FlatRNN
 from chtorch.target_scaler import TargetScaler
 from chtorch.tensorifier import Tensorifier
 
-
 logger = logging.getLogger(__name__)
 
 
 # How should we handle configurations that depend on others
 # Hierarchical, default values 0
+
+
+def print_parameter_counts(model):
+    total_params = 0
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            num_params = param.numel()
+            print(f"{name:50}: {num_params}")
+            total_params += num_params
+    print(f"\nTotal trainable parameters: {total_params}")
 
 
 class ModelBase:
@@ -39,10 +49,9 @@ class ModelBase:
 
     def _get_tensorifier(self):
         return Tensorifier(
-            self.model_configuration.additional_covariates,
             Log1pTransform(),
-            self.problem_configuration.replace_zeros,
-            use_population=self.model_configuration.use_population)
+            self.model_configuration
+            )
 
 
 class PredictorInfo(BaseModel):
@@ -75,7 +84,7 @@ class Predictor(ModelBase):
         self._target_scaler = target_scaler
         assert target_scaler is not None
 
-    def save(self, path: Path| str):
+    def save(self, path: Path | str):
         path = Path(path)
         torch.save(self.module.state_dict(), path)
         dump(self.transformer, path.with_suffix('.transformer'))
@@ -204,15 +213,16 @@ class Estimator(ModelBase):
                         prediction_length=self.prediction_length,
                         output_dim=2 + self.problem_configuration.predict_nans,
                         cfg=self.model_configuration)
-
+        print_parameter_counts(module)
         lightning_module = DeepARLightningModule(
             module,
             self.loss,
             target_scaler=target_scaler,
             cfg=self.model_configuration)
 
+        tb_logger = TensorBoardLogger(save_dir="tb_logs", name=data.metadata.name)
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
-                            accelerator="cpu")
+                            accelerator="cpu", logger=tb_logger)
         # tuner = Tuner(trainer)
         # trainer.tune()
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
@@ -289,9 +299,10 @@ class Estimator(ModelBase):
                 transformer=transformer)
             true_length = (len(validation_dataset.period_range) - self.prediction_length + 1) * len(
                 validation_dataset.locations())
-            logger.info(f'Validation set has {len(val_dataset)} entries. n_periods = {len(validation_dataset.period_range)}-{self.prediction_length}, n_locations={len(validation_dataset.locations())}')
+            logger.info(
+                f'Validation set has {len(val_dataset)} entries. n_periods = {len(validation_dataset.period_range)}-{self.prediction_length}, n_locations={len(validation_dataset.locations())}')
             assert len(val_dataset) == true_length, (
-            len(val_dataset), len(validation_dataset.period_range), self.prediction_length)
+                len(val_dataset), len(validation_dataset.period_range), self.prediction_length)
             val_dataset = val_dataset.empty_removed()
         else:
             val_dataset = None
