@@ -227,8 +227,8 @@ class Estimator(ModelBase):
         # tuner = Tuner(trainer)
         # trainer.tune()
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
-        self.last_val_loss = lightning_module.last_validation_loss
-        self.last_train_loss = lightning_module.last_train_loss
+        # self.last_val_loss = lightning_module.last_validation_loss
+        # self.last_train_loss = lightning_module.last_train_loss
         print(lightning_module.last_train_losses)
         return self.predictor_cls(module,
                                   PredictorInfo(
