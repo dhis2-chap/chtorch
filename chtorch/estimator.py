@@ -1,6 +1,6 @@
 import logging
 
-from pytorch_lightning.loggers import TensorBoardLogger
+# from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.preprocessing import StandardScaler
 from joblib import dump, load
 from pathlib import Path
@@ -82,7 +82,7 @@ class Predictor(ModelBase):
         self.count_transform = Log1pTransform()
         self._loss_class = self._get_loss_class()
         self._target_scaler = target_scaler
-        assert target_scaler is not None
+        # assert target_scaler is not None, target_scaler
 
     def save(self, path: Path | str):
         path = Path(path)
@@ -220,9 +220,10 @@ class Estimator(ModelBase):
             target_scaler=target_scaler,
             cfg=self.model_configuration)
 
-        tb_logger = TensorBoardLogger(save_dir="tb_logs", name=data.metadata.name)
+        data_name = data.metadata.name if hasattr(data, 'metadata') else 'default'
+        # tb_logger = TensorBoardLogger(save_dir="tb_logs", name=data_name)
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
-                            accelerator="cpu", logger=tb_logger)
+                            accelerator="cpu") # , logger=tb_logger)
         # tuner = Tuner(trainer)
         # trainer.tune()
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
