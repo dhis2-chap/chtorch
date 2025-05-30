@@ -6,8 +6,8 @@ from chtorch.module import RNNConfiguration
 class TensorifierConfig(BaseModel):
     mask_covid: bool = True
     previous_cases: bool = False
-    additional_covariates: list[str] = ['rainfall', 'mean_temperature']
     use_population: bool = True
+    additional_covariates: list[str] = ['rainfall', 'mean_temperature']
 
 
 class ModelConfiguration(RNNConfiguration, TensorifierConfig, extra='forbid'):
@@ -23,7 +23,7 @@ class ModelConfiguration(RNNConfiguration, TensorifierConfig, extra='forbid'):
 
 
 class ProblemConfiguration(BaseModel):
-    prediction_length: int = 3
+    prediction_length: int | None = 3
     replace_zeros: bool = False
     replace_nans: bool = False
     predict_nans: bool = False  # This can also be a model configuration

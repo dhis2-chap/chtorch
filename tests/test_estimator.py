@@ -25,11 +25,11 @@ def hpo_model_configuration():
 
 @pytest.fixture
 def problem_configuration():
-    return ProblemConfiguration(prediction_length=3, debug=True)
+    return ProblemConfiguration(prediction_length=None, debug=True)
 
 
 @pytest.mark.parametrize('problem_configuration',
-                         [ProblemConfiguration(prediction_length=3, debug=True, predict_nans=v) for v in [False]])#, False]])
+                         [ProblemConfiguration(prediction_length=None, debug=True, predict_nans=v) for v in [False]])#, False]])
 def test_estimator(ch_dataset, model_configuration, problem_configuration):
     estimator = Estimator(problem_configuration,
                           model_configuration=model_configuration)

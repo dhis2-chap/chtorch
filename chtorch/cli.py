@@ -21,7 +21,7 @@ from chtorch.problem_adaptions import adapt_dataset
 from chtorch.validation import filter_dataset
 from cyclopts import App
 
-from chtorch.estimator import Estimator
+from chtorch.estimator import Estimator, get_frequency
 from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 import logging
 
@@ -258,8 +258,6 @@ def hp_investigation(dataset_path: str, p_cfg: ProblemConfiguration = ProblemCon
         run_validation_training(dataset, model_configuration, p_cfg)
 
 
-
-
 def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
     dataset = DataSet.from_csv(dataset_path)
     frequency = get_frequency(dataset)
@@ -275,10 +273,6 @@ def _get_dataset(dataset_path, frequency, remove_last_year, year_fraction):
         dataset, _ = train_test_generator(dataset, prediction_length=removed_periods, n_test_sets=1)
     print(dataset)
     return dataset, n_test_sets
-
-
-def get_frequency(dataset):
-    return 'M' if isinstance(dataset.period_range[0], Month) else 'W'
 
 
 def main():

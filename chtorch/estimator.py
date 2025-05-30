@@ -1,5 +1,6 @@
 import logging
 
+from chap_core.time_period import Month
 # from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.preprocessing import StandardScaler
 from joblib import dump, load
@@ -78,7 +79,6 @@ class Predictor(ModelBase):
         self.tensorifier = self._get_tensorifier()
         self.transformer = transformer
         self.context_length = model_configuration.context_length
-        self.prediction_length = problem_configuration.prediction_length
         self.count_transform = Log1pTransform()
         self._loss_class = self._get_loss_class()
         self._target_scaler = target_scaler
@@ -110,7 +110,7 @@ class Predictor(ModelBase):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
         historic_tensor = historic_tensor.astype(np.float32)
         _DataSet = TSDataSet if not self.is_flat else FlatTSDataSet
-        ts_dataset = _DataSet(historic_tensor, None, population, self.context_length, self.prediction_length, parents,
+        ts_dataset = _DataSet(historic_tensor, None, population, self.context_length, self.problem_configuration.prediction_length, parents,
                               transformer=self.transformer)
         batch = ts_dataset.last_prediction_instance()
         with torch.no_grad():
@@ -159,7 +159,6 @@ class Estimator(ModelBase):
         self.last_val_loss = None
         self.last_train_loss = None
         self.context_length = model_configuration.context_length
-        self.prediction_length = problem_configuration.prediction_length
         self.debug = problem_configuration.debug
         self.validate = problem_configuration.validate
         self.max_epochs = model_configuration.max_epochs
@@ -172,8 +171,18 @@ class Estimator(ModelBase):
             self.max_epochs = 2500 // self.context_length
         self._validation_dataset = None
 
+    def set_prediction_length_if_needed(self, data: DataSet):
+        if self.problem_configuration.prediction_length is not None:
+            return
+        frequency = get_frequency(data)
+        if frequency == 'M':
+            self.problem_configuration.prediction_length = 3
+        elif frequency == 'W':
+            self.problem_configuration.prediction_length = 12
+
     def train(self, data: DataSet):
         assert self.is_flat, "non-Flat model is deprecated"
+        self.set_prediction_length_if_needed(data)
         if self.validate:
             val_periods = {period.id for period in self._validation_dataset.period_range}
             logger.info(f'Validation dataset has period range: {self._validation_dataset.period_range}')
@@ -210,7 +219,7 @@ class Estimator(ModelBase):
 
         module = Module(train_dataset.n_categories,
                         train_dataset.n_features,
-                        prediction_length=self.prediction_length,
+                        prediction_length=self.problem_configuration.prediction_length,
                         output_dim=2 + self.problem_configuration.predict_nans,
                         cfg=self.model_configuration)
         print_parameter_counts(module)
@@ -284,7 +293,7 @@ class Estimator(ModelBase):
 
         assert len(X) == len(y)
 
-        train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.prediction_length, parents,
+        train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.problem_configuration.prediction_length, parents,
                                       transformer=transformer)
         if validation_dataset is not None:
             val_array_dataset, val_population, _ = self.tensorifier.convert(validation_dataset)
@@ -296,17 +305,21 @@ class Estimator(ModelBase):
             val_dataset = FlatTSDataSet(
                 full_X, full_y, full_population,
                 self.context_length,
-                self.prediction_length, parents,
+                self.problem_configuration.prediction_length, parents,
                 transformer=transformer)
-            true_length = (len(validation_dataset.period_range) - self.prediction_length + 1) * len(
+            true_length = (len(validation_dataset.period_range) - self.problem_configuration.prediction_length + 1) * len(
                 validation_dataset.locations())
             logger.info(
-                f'Validation set has {len(val_dataset)} entries. n_periods = {len(validation_dataset.period_range)}-{self.prediction_length}, n_locations={len(validation_dataset.locations())}')
+                f'Validation set has {len(val_dataset)} entries. n_periods = {len(validation_dataset.period_range)}-{self.problem_configuration.prediction_length}, n_locations={len(validation_dataset.locations())}')
             assert len(val_dataset) == true_length, (
-                len(val_dataset), len(validation_dataset.period_range), self.prediction_length)
+                len(val_dataset), len(validation_dataset.period_range), self.problem_configuration.prediction_length)
             val_dataset = val_dataset.empty_removed()
         else:
             val_dataset = None
 
         train_dataset = train_dataset.empty_removed()
         return train_dataset, transformer, target_scaler, val_dataset
+
+
+def get_frequency(dataset):
+    return 'M' if isinstance(dataset.period_range[0], Month) else 'W'

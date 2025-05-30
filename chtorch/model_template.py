@@ -46,7 +46,7 @@ meta_data = ModelTemplateMetaData(
 )
 
 class ExposedModelTemplate(ModelTemplateInterface):
-    _model_template = TorchModelTemplate(ProblemConfiguration(debug=True))
+    _model_template = TorchModelTemplate(ProblemConfiguration(debug=True, prediction_length=None))
     model_config_class = ModelConfiguration
     model_template_info = ModelTemplateConfigCommon(
         supported_period_type='any',
