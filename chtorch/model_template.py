@@ -10,8 +10,6 @@ from chtorch.problem_adaptions import adapt_dataset
 from chtorch.validation import filter_dataset
 
 
-
-
 class TorchModelTemplate:
     '''
     Model template for configuring deep learning models using pytorch
@@ -36,17 +34,17 @@ class TorchModelTemplate:
                          model_configuration=config)
 
 
-
 meta_data = ModelTemplateMetaData(
-    display_name= 'Torch Deep Learning Model',
-    description = "This is a deep learning model template for CHAP. It is based on pytorch and can be used to train and predict using deep learning models. This typically need some configuration to fit the specifics of a dataset",
-    author= "Knut Rand",
-    organization= "UiO",
-    contact_email =  'knutdrand@gmail.com',
+    display_name='Torch Deep Learning Model',
+    description="This is a deep learning model template for CHAP. It is based on pytorch and can be used to train and predict using deep learning models. This typically need some configuration to fit the specifics of a dataset",
+    author="Knut Rand",
+    organization="UiO",
+    contact_email='knutdrand@gmail.com',
 )
 
+
 class ExposedModelTemplate(ModelTemplateInterface):
-    _model_template = TorchModelTemplate(ProblemConfiguration(debug=True, prediction_length=None))
+    _model_template = TorchModelTemplate(ProblemConfiguration(prediction_length=None))
     model_config_class = ModelConfiguration
     model_template_info = ModelTemplateConfigCommon(
         supported_period_type='any',
@@ -63,4 +61,3 @@ class ExposedModelTemplate(ModelTemplateInterface):
         config = ModelConfiguration(**model_configuration.user_option_values,
                                     additional_covariates=model_configuration.additional_continuous_covariates)
         return self._model_template.get_model(config)
-
