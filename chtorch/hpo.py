@@ -43,7 +43,7 @@ def objective(trial, dataset):
                                       embed_dim=ed,
                                       num_rnn_layers=nrl,
                                       n_layers=nl)
-    estimator = Estimator(prob_config, model_config, validate=True)
+    estimator = Estimator(prob_config, model_config)
 
     _ = estimator.train(dataset)
     val_loss = estimator.last_val_loss
