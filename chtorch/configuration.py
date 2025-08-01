@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from chtorch.module import RNNConfiguration
 
 
-class TensorifierConfig(BaseModel):
+class TensorifierConfig(BaseModel): # data preprocessing config
     mask_covid: bool = True
     previous_cases: bool = False
     use_population: bool = True
