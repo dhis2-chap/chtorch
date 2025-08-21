@@ -3,11 +3,12 @@ from functools import partial
 from pathlib import Path
 
 import optuna
+from chap_core.assessment.dataset_splitting import train_test_generator
 from chap_core import ModelTemplateInterface
 from chap_core.datatypes import FullData
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 
-from chtorch.estimator import Estimator
+from chtorch.estimator import Estimator, get_frequency
 from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 import logging
 
@@ -26,7 +27,7 @@ def suggest_model_configuration(trial):
         dropout=trial.suggest_float("dropout", 0.0, 0.5))
 
 
-def objective(trial, dataset):
+def objective(trial, train_dataset, val_dataset):
     wd = trial.suggest_loguniform("weight_decay", 1e-8, 1e-3)
     nh = trial.suggest_categorical("n_hidden", [4, 8, 16, 32])
     me = trial.suggest_categorical("max_epochs", [2, 3])
@@ -44,8 +45,8 @@ def objective(trial, dataset):
                                       num_rnn_layers=nrl,
                                       n_layers=nl)
     estimator = Estimator(prob_config, model_config)
-
-    _ = estimator.train(dataset)
+    estimator.add_validation(val_dataset)
+    _ = estimator.train(train_dataset)
     val_loss = estimator.last_val_loss
 
     return val_loss
@@ -57,8 +58,12 @@ def optuna_search(path, n_trials, output_name):
 
 
 def tune_hyperparameters(dataset, n_trials, output_name):
+    frequency = get_frequency(dataset)
+    train_dataset, val_generator = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
+    val_dataset = next(val_generator)[-1]
+
     study = optuna.create_study(direction="minimize")
-    study.optimize(partial(objective, dataset=dataset), n_trials=n_trials)
+    study.optimize(partial(objective, train_dataset=train_dataset, val_dataset=val_dataset), n_trials=n_trials)
     logger.info(f"Number of finished trials: {len(study.trials)}")
     logger.info("Best trial:")
     best_trial = study.best_trial

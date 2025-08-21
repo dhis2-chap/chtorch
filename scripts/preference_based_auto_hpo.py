@@ -1,12 +1,14 @@
 from typing import Dict, List, Optional, Union
 import numpy as np
-from chtorch.estimator import Estimator
+from chtorch.estimator import Estimator, get_frequency
 from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 import logging
 logger = logging.getLogger(__name__)
 
 from chap_core.datatypes import FullData
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
+from chap_core.assessment.dataset_splitting import train_test_generator
+
 
 import ConfigSpace as CS
 from pbmohpo.problems.problem import Problem
@@ -31,6 +33,10 @@ class TuneDeepAR(Problem):
         super().__init__(seed)
         self.data_path = data_path
         self.dataset = DataSet.from_csv(path, FullData)
+        frequency = get_frequency(self.dataset)
+        self.train_dataset, val_generator = train_test_generator(self.dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1) # TODO: split off second test set here to use as the outer val set
+        self.val_dataset = next(val_generator)[-1]
+
         self.objectives = ["last_val_loss", "last_train_loss"] # TODO: add meaningful other objectives to Estimator function
 
     def get_config_space(self) -> CS.ConfigurationSpace:
@@ -115,8 +121,8 @@ class TuneDeepAR(Problem):
         prob_config = ProblemConfiguration(replace_zeros=True, validate=True)
         model_config = ModelConfiguration(**params)
         estimator = Estimator(prob_config, model_config)
-
-        _ = estimator.train(self.dataset) # TODO: add cross-validation?
+        estimator.add_validation(self.val_dataset)
+        _ = estimator.train(self.train_dataset) # TODO: add cross-validation?
 
         result_dict = {"last_val_loss": estimator.last_val_loss, "last_train_loss": estimator.last_train_loss}
         print(result_dict)
@@ -141,4 +147,3 @@ if __name__ == "__main__":
     print("Running EUBO")
     bench.run()
  
-    #optuna_search(path, n_trials, output_name)

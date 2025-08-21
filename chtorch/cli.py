@@ -42,11 +42,7 @@ def validation_training(dataset_path: str,
     print(dataset.metadata.name)
     dataset.metadata.name = dataset.metadata.name + '_validation'
     frequency = get_frequency(dataset)
-    dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
-
-    p_cfg.validate = True
-    p_cfg.validation_splits = 3
-    p_cfg.validation_index = 2
+    dataset, _ = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=0)
 
     cfg = get_config(cfg, cfg_path)
     run_validation_training(dataset, cfg, p_cfg)
