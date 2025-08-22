@@ -112,3 +112,6 @@ lightning_logs/
 
 #optuna study file
 *.db
+
+#mlflow logging by pbmohpo
+mlruns
