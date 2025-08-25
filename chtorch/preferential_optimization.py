@@ -6,7 +6,7 @@ from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 import logging
 logger = logging.getLogger(__name__)
 
-from chap_core.datatypes import FullData
+from chap_core.datatypes import FullData, SamplesWithTruth 
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 from chap_core.assessment.dataset_splitting import train_test_generator
 
@@ -32,7 +32,9 @@ class TuneDeepAR(Problem):
         self.data_path = data_path
         self.dataset = DataSet.from_csv(self.data_path, FullData)
         frequency = get_frequency(self.dataset)
-        self.train_dataset, val_generator = train_test_generator(self.dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1) # TODO: split off second test set here to use as the outer val set
+        self.full_train, self.test_generator = train_test_generator(self.dataset, prediction_length=12, n_test_sets=1)
+
+        self.train_dataset, val_generator = train_test_generator(self.full_train, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1) # TODO: split off second test set here to use as the outer val set
         self.val_dataset = next(val_generator)[-1]
 
         self.objectives = ["last_val_loss", "last_train_loss"] # TODO: add meaningful other objectives to Estimator function
@@ -120,7 +122,12 @@ class TuneDeepAR(Problem):
         model_config = ModelConfiguration(**params)
         estimator = Estimator(prob_config, model_config)
         estimator.add_validation(self.val_dataset)
-        _ = estimator.train(self.train_dataset) # TODO: add cross-validation?
+        predictor = estimator.train(self.train_dataset) # TODO: add cross-validation?
+        
+        # Create predictions and merge with ground truth, TODO: Fix npdataclass dimensions
+        for historic_data, future_data, future_truth in self.test_generator:
+            r = predictor.predict(historic_data, future_data)
+            samples_with_truth = future_truth.merge(r, result_dataclass=SamplesWithTruth)
 
         result_dict = {"last_val_loss": estimator.last_val_loss, "last_train_loss": estimator.last_train_loss}
         print(result_dict)

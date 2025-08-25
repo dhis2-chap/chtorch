@@ -109,7 +109,6 @@ def run_pbmohpo_bench(
 
     logging.info("Decision Maker Preference Scores:")
     logging.info(dm.preferences)
-
     bench = Benchmark(
         prob,
         opt,
