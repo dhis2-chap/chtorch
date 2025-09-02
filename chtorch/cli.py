@@ -178,12 +178,16 @@ def evaluate(dataset_path: str,
     dataset.plot_aggregate()
     frequency = 'M' if isinstance(dataset.period_range[0], Month) else 'W'
     model_configuration = get_config(cfg, cfg_path)
+    #TODO: Remove - only for debugging
+    model_configuration.max_epochs = 2
     model_template = TorchModelTemplate(p_cfg, auxilliary=aux)
     #cfg.context_length = 12 if frequency == 'M' else 38
 
     estimator = model_template.get_model(model_configuration)
 
-    func = backtest if not self_evaluate else self_backtest
+    # TODO: Remove - only for debugging
+    # func = backtest if not self_evaluate else self_backtest
+    func = self_backtest
     predictions_list = list(func(estimator, dataset, prediction_length=p_cfg.prediction_length,
                               n_test_sets=n_test_sets, stride=1,
                               weather_provider=None))

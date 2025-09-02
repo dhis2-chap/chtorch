@@ -32,7 +32,7 @@ class TuneDeepAR(Problem):
         self.data_path = data_path
         self.dataset = DataSet.from_csv(self.data_path, FullData)
         frequency = get_frequency(self.dataset)
-        self.full_train, self.test_generator = train_test_generator(self.dataset, prediction_length=12, n_test_sets=1)
+        self.full_train, self.test_generator = train_test_generator(self.dataset, prediction_length=3, n_test_sets=6)
 
         self.train_dataset, val_generator = train_test_generator(self.full_train, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1) # TODO: split off second test set here to use as the outer val set
         self.val_dataset = next(val_generator)[-1]
@@ -124,10 +124,11 @@ class TuneDeepAR(Problem):
         estimator.add_validation(self.val_dataset)
         predictor = estimator.train(self.train_dataset) # TODO: add cross-validation?
         
-        # Create predictions and merge with ground truth, TODO: Fix npdataclass dimensions
         for historic_data, future_data, future_truth in self.test_generator:
             r = predictor.predict(historic_data, future_data)
             samples_with_truth = future_truth.merge(r, result_dataclass=SamplesWithTruth)
+        
+        print(samples_with_truth)
 
         result_dict = {"last_val_loss": estimator.last_val_loss, "last_train_loss": estimator.last_train_loss}
         print(result_dict)

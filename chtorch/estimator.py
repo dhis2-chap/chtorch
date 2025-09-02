@@ -137,7 +137,9 @@ class Predictor(ModelBase):
 
 model_config = ModelConfiguration(weight_decay=1e-6,
                                   n_hidden=4,
-                                  max_epochs=200,
+                                  # TODO: Change back
+                                  # max_epochs=200,
+                                  max_epochs=2,
                                   context_length=12,
                                   embed_dim=2,
                                   num_rnn_layers=1,
