@@ -22,6 +22,15 @@ Utility packages for making pytorch models for climate and health.
 Installation
 -------------
 
+Using uv (recommended):
+
 - Clone repository
-- Install with pip: `pip install .` (NB: For local development, install editable with `pip install -e .`)
-- If doing development installation, also install development requirements with `pip install -r requirements_dev.txt`
+- Install with uv: ``uv sync`` (installs production dependencies)
+- For development: ``uv sync --dev`` (includes test dependencies like pytest and hypothesis)
+- Run the CLI: ``uv run chtorch``
+
+Using pip:
+
+- Clone repository
+- Install with pip: ``pip install .``
+- For local development: ``pip install -e ".[dev]"``

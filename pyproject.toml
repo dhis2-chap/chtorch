@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "chtorch"
+version = "0.0.1"
+description = "Utility packages for making pytorch models for climate and health"
+readme = "README.rst"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "Knut Rand", email = "knutdrand@gmail.com"},
+]
+keywords = ["chtorch"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "typer",
+    "chap-core>=1.0.17",
+    "torch",
+    "lightning",
+    "pytorch_forecasting",
+    "optuna",
+    "numpydantic",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=3",
+    "hypothesis",
+]
+
+[project.urls]
+Homepage = "https://github.com/knutdrand/chtorch"
+Repository = "https://github.com/knutdrand/chtorch"
+
+[project.scripts]
+chtorch = "chtorch.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["chtorch"]
