@@ -29,6 +29,7 @@ dependencies = [
     "pytorch_forecasting",
     "optuna",
     "numpydantic",
+    "chapkit",
 ]
 
 [tool.uv]
@@ -36,6 +37,9 @@ dev-dependencies = [
     "pytest>=3",
     "hypothesis",
 ]
+
+[tool.uv.sources]
+chapkit = { path = "../chapkit", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/knutdrand/chtorch"

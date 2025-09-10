@@ -17,7 +17,7 @@ meta_data:
     Climate Health Analytics Platform. 2025. "Torch Deep Learning Model".
     HISP Centre, University of Oslo.
     https://dhis2-chap.github.io/chap-core/external_models/overview_of_supported_models.html
-
+ 
 allow_free_additional_continuous_covariates: true
 required_covariates:
 - population

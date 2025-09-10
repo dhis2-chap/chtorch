@@ -105,6 +105,67 @@ class Predictor(ModelBase):
         return cls(module,
                    predictor_info,
                    transformer)
+    
+    def serialize(self) -> dict:
+        """Serialize the predictor to a dictionary that can be stored in a database."""
+        import io
+        import pickle
+        import base64
+        
+        # Serialize module state dict
+        module_buffer = io.BytesIO()
+        torch.save(self.module.state_dict(), module_buffer)
+        module_bytes = base64.b64encode(module_buffer.getvalue()).decode('utf-8')
+        
+        # Serialize transformer
+        transformer_bytes = base64.b64encode(pickle.dumps(self.transformer)).decode('utf-8')
+        
+        # Serialize target scaler if it exists
+        target_scaler_bytes = None
+        if self._target_scaler is not None:
+            target_scaler_bytes = base64.b64encode(pickle.dumps(self._target_scaler)).decode('utf-8')
+        
+        return {
+            'module_state': module_bytes,
+            'transformer': transformer_bytes,
+            'target_scaler': target_scaler_bytes,
+            'predictor_info': self._predictor_info.model_dump()
+        }
+    
+    @classmethod
+    def from_serialized(cls, data: dict):
+        """Reconstruct a predictor from serialized data."""
+        import io
+        import pickle
+        import base64
+        
+        # Deserialize predictor info
+        predictor_info = PredictorInfo(**data['predictor_info'])
+        
+        # Create module
+        module = FlatRNN(
+            num_categories=predictor_info.n_categories,
+            input_feature_dim=predictor_info.n_features,
+            prediction_length=predictor_info.problem_configuration.prediction_length,
+            cfg=predictor_info.model_configuration)
+        
+        # Load module state
+        module_bytes = base64.b64decode(data['module_state'])
+        module_buffer = io.BytesIO(module_bytes)
+        module.load_state_dict(torch.load(module_buffer))
+        
+        # Deserialize transformer
+        transformer = pickle.loads(base64.b64decode(data['transformer']))
+        
+        # Deserialize target scaler if it exists
+        target_scaler = None
+        if data.get('target_scaler') is not None:
+            target_scaler = pickle.loads(base64.b64decode(data['target_scaler']))
+        
+        return cls(module,
+                   predictor_info,
+                   transformer,
+                   target_scaler=target_scaler)
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)

@@ -68,3 +68,43 @@ def test_save(train_test, tmp_path):
     predictor.save(out_path)
     predictor.load(out_path)
     # assert out_path.exists()
+
+
+def test_serialize_deserialize(train_test):
+    """Test that serialize/from_serialized methods work correctly."""
+    train, test_data = train_test
+    # test_data is a tuple of (historic_data, future_data, future_truth)
+    historic_data, future_data, _ = test_data
+    
+    # Create and train a predictor
+    estimator = Estimator(
+        ProblemConfiguration(prediction_length=3, debug=True),
+        ModelConfiguration(context_length=12, n_hidden=2, state_dim=4)
+    )
+    original_predictor = estimator.train(train)
+    
+    # Serialize the predictor
+    serialized_data = original_predictor.serialize()
+    
+    # Verify serialized data structure
+    assert isinstance(serialized_data, dict)
+    assert 'module_state' in serialized_data
+    assert 'transformer' in serialized_data
+    assert 'target_scaler' in serialized_data
+    assert 'predictor_info' in serialized_data
+    
+    # Deserialize to create a new predictor
+    from chtorch.estimator import Predictor
+    restored_predictor = Predictor.from_serialized(serialized_data)
+    
+    # Verify the restored predictor has the same configuration
+    assert restored_predictor.model_configuration == original_predictor.model_configuration
+    assert restored_predictor.problem_configuration == original_predictor.problem_configuration
+    assert restored_predictor.context_length == original_predictor.context_length
+    
+    # Test that the restored predictor can make predictions without errors
+    predictions = restored_predictor.predict(historic_data, future_data)
+    
+    # Basic validation that predictions are valid
+    assert predictions is not None
+    assert len(predictions.keys()) > 0  # Has predictions for at least one location
