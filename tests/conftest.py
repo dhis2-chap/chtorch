@@ -24,6 +24,16 @@ def electricity_dataset():
 def ch_dataset():
     return ISIMIP_dengue_harmonized['vietnam']
 
+@pytest.fixture
+def ch_dataset_brazil():
+    return ISIMIP_dengue_harmonized['brazil']
+
+@pytest.fixture
+def ch_dataset_laos():
+    return ISIMIP_dengue_harmonized['laos']
+
+
+
 @pytest.fixture()
 def model_configuration():
     return ModelConfiguration(context_length=12)

@@ -40,6 +40,7 @@ dev-dependencies = [
 
 [tool.uv.sources]
 chapkit = { path = "../chapkit", editable = true }
+chap-core = { path = "../climate_health", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/knutdrand/chtorch"

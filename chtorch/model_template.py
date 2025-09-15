@@ -8,6 +8,8 @@ from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 from chtorch.auxilliary_estimator import AuxilliaryEstimator
 from chtorch.problem_adaptions import adapt_dataset
 from chtorch.validation import filter_dataset
+import chapkit
+from chapkit.model import ChapModelConfig, ChapModelRunnerBase
 
 
 class TorchModelTemplate:
@@ -60,4 +62,7 @@ class ExposedModelTemplate(ModelTemplateInterface):
     def get_model(self, model_configuration: CHAPModelConfiguration = CHAPModelConfiguration):
         config = ModelConfiguration(**model_configuration.user_option_values,
                                     additional_covariates=model_configuration.additional_continuous_covariates)
+        return self._model_template.get_model(config)
+
+    def get_model_from_chapkit_config(self, config: ChapModelConfig):
         return self._model_template.get_model(config)
