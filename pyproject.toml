@@ -7,7 +7,7 @@ name = "chtorch"
 version = "0.0.1"
 description = "Utility packages for making pytorch models for climate and health"
 readme = "README.rst"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 license = {text = "MIT"}
 authors = [
     {name = "Knut Rand", email = "knutdrand@gmail.com"},
@@ -19,7 +19,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "typer",
@@ -39,8 +39,8 @@ dev-dependencies = [
 ]
 
 [tool.uv.sources]
-chapkit = { path = "../chapkit", editable = true }
 chap-core = { path = "../climate_health", editable = true }
+chapkit = { path = "../chapkit", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/knutdrand/chtorch"
