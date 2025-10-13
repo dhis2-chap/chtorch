@@ -1,4 +1,14 @@
+from chapkit import ChapConfig
 from pydantic import BaseModel
+import ulid
+ULID = ulid.ULID
+from pydantic import BaseModel, Field, ConfigDict, EmailStr, HttpUrl
+
+
+def new_ulid() -> ULID:
+    return ULID()
+
+
 
 from chtorch.module import RNNConfiguration
 
@@ -20,6 +30,10 @@ class ModelConfiguration(RNNConfiguration, TensorifierConfig, extra='forbid'):
     augmentations: list[str] = []  # Regularization
     context_length: int = 12
     past_ratio: float = 0.2  # Regularization
+
+
+class ModelConfigurationChapKit(ChapConfig, ModelConfiguration):
+    pass
 
 
 class ProblemConfiguration(BaseModel):

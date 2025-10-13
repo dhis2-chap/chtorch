@@ -81,10 +81,10 @@ info = ChapServiceInfo(
     organization="HISP Centre, University of Oslo",
     organization_logo_url="https://landportal.org/sites/default/files/2024-03/university_of_oslo_logo.png",
     citation_info='Climate Health Analytics Platform. 2025. "Torch Deep Learning Model". HISP Centre, University of Oslo. https://dhis2-chap.github.io/chap-core/external_models/overview_of_supported_models.html',
-    data_configuration = {
-        "required_covariates": ["population"],
-        "target": "disease_cases",
-        "allow_free_additional_continuous_covariates": True,
-        "supported_period_type": "any",
-    }
+    #data_configuration = {
+    #    "required_covariates": ["population"],
+    #    "target": "disease_cases",
+    #    "allow_free_additional_continuous_covariates": True,
+    #    "supported_period_type": "any",
+    #}
 )

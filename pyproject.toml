@@ -23,13 +23,14 @@ classifiers = [
 ]
 dependencies = [
     "typer",
-    "chap-core>=1.0.17",
+    "chap-core @ git+https://github.com/dhis2-chap/chap-core.git",
     "torch",
     "lightning",
     "pytorch_forecasting",
     "optuna",
     "numpydantic",
-    "chapkit",
+    "chapkit @ git+https://github.com/dhis2-chap/chapkit.git",
+    "uvicorn[standard]",
 ]
 
 [tool.uv]
@@ -38,9 +39,8 @@ dev-dependencies = [
     "hypothesis",
 ]
 
-[tool.uv.sources]
-chap-core = { path = "../climate_health", editable = true }
-chapkit = { path = "../chapkit", editable = true }
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [project.urls]
 Homepage = "https://github.com/knutdrand/chtorch"
