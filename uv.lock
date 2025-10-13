@@ -285,7 +285,7 @@ dependencies = [
 [[package]]
 name = "chapkit"
 version = "0.0.1"
-source = { git = "https://github.com/dhis2-chap/chapkit.git#69c7e095bc2ad028fd23ec475d149225ea7c60e1" }
+source = { editable = "../chapkit" }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "geojson-pydantic" },
@@ -295,6 +295,25 @@ dependencies = [
     { name = "python-ulid" },
     { name = "sqlalchemy" },
     { name = "structlog" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.118.0" },
+    { name = "geojson-pydantic", specifier = ">=2.0.0" },
+    { name = "pandas", specifier = ">=2.3.3" },
+    { name = "pydantic", specifier = ">=2.11.10" },
+    { name = "python-dotenv", specifier = ">=1.1.1" },
+    { name = "python-ulid", specifier = ">=3.1.0" },
+    { name = "sqlalchemy", specifier = ">=2.0.43" },
+    { name = "structlog", specifier = ">=25.4.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest-asyncio", specifier = ">=1.2.0" },
+    { name = "ruff", specifier = ">=0.13.3" },
 ]
 
 [[package]]
@@ -353,7 +372,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "chap-core", git = "https://github.com/dhis2-chap/chap-core.git" },
-    { name = "chapkit", git = "https://github.com/dhis2-chap/chapkit.git" },
+    { name = "chapkit", editable = "../chapkit" },
     { name = "lightning" },
     { name = "numpydantic" },
     { name = "optuna" },

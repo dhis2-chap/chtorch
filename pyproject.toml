@@ -29,7 +29,7 @@ dependencies = [
     "pytorch_forecasting",
     "optuna",
     "numpydantic",
-    "chapkit @ git+https://github.com/dhis2-chap/chapkit.git",
+    "chapkit",
     "uvicorn[standard]",
 ]
 
@@ -38,6 +38,9 @@ dev-dependencies = [
     "pytest>=3",
     "hypothesis",
 ]
+
+[tool.uv.sources]
+chapkit = { path = "../chapkit", editable = true }
 
 [tool.hatch.metadata]
 allow-direct-references = true

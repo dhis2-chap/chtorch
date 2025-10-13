@@ -3,6 +3,7 @@ from geojson_pydantic import FeatureCollection
 import pandas as pd
 from chtorch.estimator import Estimator, Predictor
 from chapkit import (
+    DataFrameSplit,
     SqlAlchemyChapDatabase,
 )
 from chapkit.model import (
@@ -37,7 +38,12 @@ def on_predict(config: ModelConfigurationChapKit, model: Any, historic: pd.DataF
     future_data = DataSet.from_pandas(future)
     model = Predictor.from_serialized(model)
     y_pred = model.predict(historic_data, future_data)
-    return y_pred.to_pandas()
+    pd = y_pred.to_pandas()
+    # convert time_period column to str
+    pd["time_period"] = pd["time_period"].astype(str)
+    return pd
+    return DataFrameSplit.from_pandas(y_pred.to_pandas())
+    #return y_pred.to_pandas()
 
 
 database = SqlAlchemyChapDatabase("target/chapkit.db", config_type=ModelConfigurationChapKit)
