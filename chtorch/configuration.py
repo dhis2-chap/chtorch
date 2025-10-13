@@ -1,9 +1,7 @@
-from chapkit import ChapConfig
 from pydantic import BaseModel
 import ulid
 ULID = ulid.ULID
-from pydantic import BaseModel, Field, ConfigDict, EmailStr, HttpUrl
-
+import chapkit
 
 def new_ulid() -> ULID:
     return ULID()
@@ -32,7 +30,7 @@ class ModelConfiguration(RNNConfiguration, TensorifierConfig, extra='forbid'):
     past_ratio: float = 0.2  # Regularization
 
 
-class ModelConfigurationChapKit(ChapConfig, ModelConfiguration):
+class ModelConfigurationChapKit(chapkit.BaseConfig, ModelConfiguration):
     pass
 
 

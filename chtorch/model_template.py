@@ -9,7 +9,6 @@ from chtorch.auxilliary_estimator import AuxilliaryEstimator
 from chtorch.problem_adaptions import adapt_dataset
 from chtorch.validation import filter_dataset
 import chapkit
-from chapkit.model import ChapModelConfig, ChapModelRunnerBase
 
 
 class TorchModelTemplate:
@@ -23,6 +22,7 @@ class TorchModelTemplate:
         self.auxilliary = auxilliary
 
     def get_model(self, config: ModelConfiguration):
+        assert isinstance(config, ModelConfiguration)
         if self.auxilliary:
             datasets = {country_name: filter_dataset(adapt_dataset(data, self.problem_configuration),
                                                      self.problem_configuration.prediction_length) for
@@ -64,5 +64,5 @@ class ExposedModelTemplate(ModelTemplateInterface):
                                     additional_covariates=model_configuration.additional_continuous_covariates)
         return self._model_template.get_model(config)
 
-    def get_model_from_chapkit_config(self, config: ChapModelConfig):
+    def get_model_from_chapkit_config(self, config: chapkit.BaseConfig):
         return self._model_template.get_model(config)

@@ -40,7 +40,7 @@ dev-dependencies = [
 ]
 
 [tool.uv.sources]
-chapkit = { path = "../chapkit", editable = true }
+chapkit = { path = "../chapkit2", editable = true }
 
 [tool.hatch.metadata]
 allow-direct-references = true

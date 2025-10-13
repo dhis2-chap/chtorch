@@ -2,7 +2,6 @@ from math import prod
 from pathlib import Path
 
 import numpy as np
-import torch
 from chap_core.data.datasets import ISIMIP_dengue_harmonized
 from chap_core.assessment.dataset_splitting import (
     train_test_generator,
