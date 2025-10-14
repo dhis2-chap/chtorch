@@ -306,7 +306,7 @@ dependencies = [
 [[package]]
 name = "chapkit"
 version = "0.1.0"
-source = { editable = "../chapkit2" }
+source = { git = "https://github.com/winterop-com/chapkit#b9e176c1f502d388a9a5df75f2f0f5b376393d6f" }
 dependencies = [
     { name = "aiosqlite" },
     { name = "alembic" },
@@ -324,42 +324,6 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiosqlite", specifier = ">=0.21.0" },
-    { name = "alembic", specifier = ">=1.17.0" },
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.119.0" },
-    { name = "geojson-pydantic", specifier = ">=2.1.0" },
-    { name = "gunicorn", specifier = ">=23.0.0" },
-    { name = "opentelemetry-api", specifier = ">=1.37.0" },
-    { name = "opentelemetry-exporter-prometheus", specifier = ">=0.58b0" },
-    { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.58b0" },
-    { name = "opentelemetry-instrumentation-sqlalchemy", specifier = ">=0.58b0" },
-    { name = "opentelemetry-sdk", specifier = ">=1.37.0" },
-    { name = "pandas", specifier = ">=2.3.3" },
-    { name = "pydantic", specifier = ">=2.12.0" },
-    { name = "python-ulid", specifier = ">=3.1.0" },
-    { name = "scikit-learn", specifier = ">=1.7.2" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.43" },
-    { name = "structlog", specifier = ">=24.4.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "coverage", extras = ["toml"], specifier = ">=7.6.0" },
-    { name = "mkdocs-material", specifier = ">=9.6.21" },
-    { name = "mkdocstrings", specifier = ">=0.30.1" },
-    { name = "mkdocstrings-python", specifier = ">=1.18.2" },
-    { name = "mypy", specifier = ">=1.18.2" },
-    { name = "pandas-stubs", specifier = ">=2.2.3.250101" },
-    { name = "pyright", specifier = ">=1.1.406" },
-    { name = "pytest", specifier = ">=8.4.2" },
-    { name = "pytest-asyncio", specifier = ">=1.2.0" },
-    { name = "pytest-cov", specifier = ">=5.0.0" },
-    { name = "ruff", specifier = ">=0.14.0" },
-    { name = "scikit-learn", specifier = ">=1.7.2" },
 ]
 
 [[package]]
@@ -418,7 +382,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "chap-core", git = "https://github.com/dhis2-chap/chap-core.git" },
-    { name = "chapkit", editable = "../chapkit2" },
+    { name = "chapkit", git = "https://github.com/winterop-com/chapkit" },
     { name = "lightning" },
     { name = "numpydantic" },
     { name = "optuna" },

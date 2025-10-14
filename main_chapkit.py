@@ -41,13 +41,17 @@ async def on_predict(config: ModelConfigurationChapKit, model: Any, historic: pd
 
 # Create ML service info with metadata
 info = MLServiceInfo(
-    display_name="Disease Prediction ML Service",
+    display_name="Torch Deep Learning Model",
     version="1.0.0",
     summary="ML service for disease prediction using weather data",
-    description="Train and predict disease cases based on rainfall and temperature data using Linear Regression",
-    author="ML Team",
-    author_assessed_status=AssessedStatus.yellow,
-    contact_email="ml-team@example.com",
+    description="This is a deep learning model template for CHAP. It is based on pytorch and can be used to train and predict using deep learning models. This typically need some configuration to fit the specifics of a dataset.",
+    author="Knut Rand",
+    author_note="This model might need configuration of hyperparameters in order to work properly. When the model shows signs of overfitting, reduce 'state_dim' and/or increase 'dropout' and 'weight_decay'.",
+    author_assessed_status=AssessedStatus.red,
+    contact_email="knutdrand@gmail.com",
+    organization="HISP Centre, University of Oslo",
+    organization_logo_url="https://landportal.org/sites/default/files/2024-03/university_of_oslo_logo.png",
+    citation_info='Climate Health Analytics Platform. 2025. "Torch Deep Learning Model". HISP Centre, University of Oslo. https://dhis2-chap.github.io/chap-core/external_models/overview_of_supported_models.html',
 )
 
 # Create artifact hierarchy for ML artifacts
