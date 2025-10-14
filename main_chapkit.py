@@ -4,7 +4,7 @@ from geojson_pydantic import FeatureCollection
 import pandas as pd
 from chtorch.estimator import Predictor
 from chtorch.model_template import ExposedModelTemplate
-from chtorch.configuration import ModelConfigurationChapKit
+from chtorch.configuration import ModelConfigurationChapKit, ModelConfigurationChapKitV2
 
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 
@@ -16,10 +16,10 @@ from chapkit.modules.artifact import ArtifactHierarchy
 from chapkit.modules.ml import FunctionalModelRunner
 
 
-async def on_train(config: ModelConfigurationChapKit=None, data: pd.DataFrame=None, geo: FeatureCollection | None = None):
+async def on_train(config: ModelConfigurationChapKitV2=None, data: pd.DataFrame=None, geo: FeatureCollection | None = None):
     assert config is not None, "Config must be provided"
     #config = ModelConfigurationChapKit.model_validate(config.model_dump())
-    assert isinstance(config, ModelConfigurationChapKit), f"Config is {type(config)}"
+    assert isinstance(config, ModelConfigurationChapKitV2), f"Config is {type(config)}"
     assert isinstance(config, chapkit.BaseConfig)
     model_config = config
     model_template = ExposedModelTemplate()
@@ -29,7 +29,7 @@ async def on_train(config: ModelConfigurationChapKit=None, data: pd.DataFrame=No
     return model.serialize()
 
 
-async def on_predict(config: ModelConfigurationChapKit, model: Any, historic: pd.DataFrame, future: pd.DataFrame, geo: FeatureCollection | None = None):
+async def on_predict(config: ModelConfigurationChapKitV2, model: Any, historic: pd.DataFrame, future: pd.DataFrame, geo: FeatureCollection | None = None):
     historic_data = DataSet.from_pandas(historic)
     future_data = DataSet.from_pandas(future)
     model = Predictor.from_serialized(model)
@@ -72,7 +72,7 @@ runner = FunctionalModelRunner(on_train=on_train, on_predict=on_predict)
 app = (
     MLServiceBuilder(
         info=info,
-        config_schema=ModelConfigurationChapKit,
+        config_schema=ModelConfigurationChapKitV2,
         hierarchy=HIERARCHY,
         runner=runner,
     )

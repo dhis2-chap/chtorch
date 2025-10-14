@@ -34,6 +34,12 @@ class ModelConfigurationChapKit(chapkit.BaseConfig, ModelConfiguration):
     pass
 
 
+class ModelConfigurationChapKitV2(chapkit.BaseConfig):
+    user_option_values: ModelConfiguration = ModelConfiguration()
+    additional_continuous_covariates: list[str] = []
+
+
+
 class ProblemConfiguration(BaseModel):
     prediction_length: int | None = 3
     replace_zeros: bool = False
