@@ -41,7 +41,7 @@ async def on_predict(config: ModelConfigurationChapKitV2, model: Any, historic: 
 
 # Create ML service info with metadata
 info = MLServiceInfo(
-    display_name="Torch Deep Learning Model",
+    display_name="Chapkit Torch Deep Learning Model",
     version="1.0.0",
     summary="ML service for disease prediction using weather data",
     description="This is a deep learning model template for CHAP. It is based on pytorch and can be used to train and predict using deep learning models. This typically need some configuration to fit the specifics of a dataset.",
