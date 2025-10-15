@@ -8,7 +8,7 @@ meta_data:
   author_assessed_status: red
   contact_email: knutdrand@gmail.com
   description: >
-    This is a deep learning model template for CHAP. It is based on pytorch and can be used to train and predict using deep learning models. 
+    (CHAPKIT version) This is a deep learning model template for CHAP. It is based on pytorch and can be used to train and predict using deep learning models. 
     This typically need some configuration to fit the specifics of a dataset.
   display_name: Torch Deep Learning Model (chapkit)
   organization: HISP Centre, University of Oslo
