@@ -76,7 +76,7 @@ To use the image in a docker-compose.yml file::
     
     services:
       chtorch-api:
-        image: ghcr.io/YOUR_GITHUB_USERNAME/chtorch:latest  # Replace with your GitHub username
+        image: ghcr.io/dhis2-chap/chtorch:latest  # Replace with your GitHub username
         ports:
           - "8002:8000"  # Maps external port 8002 to internal port 8000
         volumes:

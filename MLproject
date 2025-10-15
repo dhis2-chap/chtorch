@@ -1,4 +1,4 @@
-name: torch-deep
+name: torch-deep-chapkit
 
 meta_data:
   author: Knut Rand
@@ -10,7 +10,7 @@ meta_data:
   description: >
     This is a deep learning model template for CHAP. It is based on pytorch and can be used to train and predict using deep learning models. 
     This typically need some configuration to fit the specifics of a dataset.
-  display_name: Torch Deep Learning Model
+  display_name: Torch Deep Learning Model (chapkit)
   organization: HISP Centre, University of Oslo
   organization_logo_url: https://landportal.org/sites/default/files/2024-03/university_of_oslo_logo.png
   citation_info: >
