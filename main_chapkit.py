@@ -52,6 +52,8 @@ info = MLServiceInfo(
     organization="HISP Centre, University of Oslo",
     organization_logo_url="https://landportal.org/sites/default/files/2024-03/university_of_oslo_logo.png",
     citation_info='Climate Health Analytics Platform. 2025. "Torch Deep Learning Model". HISP Centre, University of Oslo. https://dhis2-chap.github.io/chap-core/external_models/overview_of_supported_models.html',
+    required_covariates=["population"],
+    allow_free_additional_continuous_covariates=True,
 )
 
 # Create artifact hierarchy for ML artifacts

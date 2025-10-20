@@ -40,7 +40,7 @@ dev-dependencies = [
 ]
 
 [tool.uv.sources]
-chapkit = { git = "https://github.com/winterop-com/chapkit" }
+chapkit = { git = "https://github.com/winterop-com/chapkit", branch = "fix-ml-config-additions" }
 
 [tool.hatch.metadata]
 allow-direct-references = true

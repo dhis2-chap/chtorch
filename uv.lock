@@ -306,7 +306,7 @@ dependencies = [
 [[package]]
 name = "chapkit"
 version = "0.1.0"
-source = { git = "https://github.com/winterop-com/chapkit#b9e176c1f502d388a9a5df75f2f0f5b376393d6f" }
+source = { git = "https://github.com/winterop-com/chapkit?branch=fix-ml-config-additions#faa612c3181f8369817c2a0ee9cd4e12f0c525e6" }
 dependencies = [
     { name = "aiosqlite" },
     { name = "alembic" },
@@ -382,7 +382,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "chap-core", git = "https://github.com/dhis2-chap/chap-core.git" },
-    { name = "chapkit", git = "https://github.com/winterop-com/chapkit" },
+    { name = "chapkit", git = "https://github.com/winterop-com/chapkit?branch=fix-ml-config-additions" },
     { name = "lightning" },
     { name = "numpydantic" },
     { name = "optuna" },

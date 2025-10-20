@@ -104,3 +104,6 @@ ENV/
 # IDE settings
 .vscode/
 .idea/
+lightning_logs
+chtorch/study.db
+evaluation_report.pdf
