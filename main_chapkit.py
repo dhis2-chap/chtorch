@@ -12,8 +12,8 @@ from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
 
 
 from chapkit.api import AssessedStatus, MLServiceBuilder, MLServiceInfo
-from chapkit.modules.artifact import ArtifactHierarchy
-from chapkit.modules.ml import FunctionalModelRunner
+from chapkit.artifact import ArtifactHierarchy
+from chapkit.ml import FunctionalModelRunner
 
 
 async def on_train(config: ModelConfigurationChapKitV2=None, data: pd.DataFrame=None, geo: FeatureCollection | None = None):
