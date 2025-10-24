@@ -37,17 +37,20 @@ def run_pbmohpo_bench(
     path to config.yaml file. File should be in the following format.
     --
     PROBLEM:
-      PROBLEM_TYPE: "yahpo"
-      ID: "iaml_ranger"
-      INSTANCE: "1067"
-      OBJECTIVE_NAMES: ["auc", "nf"]
-      OBJECTIVE_SCALING_FACTORS: [1, 21]
+    PROBLEM_TYPE: "TuneDeepAR"
+    DATAPATH: "data/vietnam_monthly.csv"
 
-    FIXED_HPS:
-      TRAINSIZE: ("trainsize", 1)
-      REPLACE: ("replace", "TRUE")
-      RESPECT_UNORDERED_FACTORS: ("respect.unordered.factors", "ignore")
-      SPLITRULE: ("splitrule", "gini")
+    OPTIMIZER:
+    OPTIMIZER_TYPE: "qEUBO"
+
+    BATCH_SIZE:
+    EVAL_BATCH_SIZE: 2
+    DM_BATCH_SIZE: 1
+
+    BUDGET:
+    EVAL_BUDGET: 10
+    DM_BUDGET: 10
+
     --
     For options than can be set in config files, please see config.py.
 
