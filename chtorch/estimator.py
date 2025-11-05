@@ -137,7 +137,9 @@ class Predictor(ModelBase):
 
 model_config = ModelConfiguration(weight_decay=1e-6,
                                   n_hidden=4,
-                                  max_epochs=200,
+                                  # TODO: Change back
+                                  # max_epochs=200,
+                                  max_epochs=2,
                                   context_length=12,
                                   embed_dim=2,
                                   num_rnn_layers=1,
@@ -236,9 +238,8 @@ class Estimator(ModelBase):
         # tuner = Tuner(trainer)
         # trainer.tune()
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
-        # self.last_val_loss = lightning_module.last_validation_loss
-        # self.last_train_loss = lightning_module.last_train_loss
-        print(lightning_module.last_train_losses)
+        self.last_val_loss = lightning_module.last_validation_loss
+        self.last_train_loss = lightning_module.last_train_loss
         return self.predictor_cls(module,
                                   PredictorInfo(
                                       problem_configuration=self.problem_configuration,

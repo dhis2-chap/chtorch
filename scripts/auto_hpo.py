@@ -1,7 +1,8 @@
 import json
 
 from itertools import product
-from chtorch.estimator import Estimator
+from chap_core.assessment.dataset_splitting import train_test_generator
+from chtorch.estimator import Estimator, get_frequency
 from chtorch.configuration import ModelConfiguration, ProblemConfiguration
 import logging
 logger = logging.getLogger(__name__)
@@ -33,6 +34,10 @@ def main(dataset):
     best_loss = float("inf")
     best_model = None
 
+    frequency = get_frequency(dataset)
+    train_dataset, val_generator = train_test_generator(dataset, prediction_length=12 if frequency == 'M' else 52, n_test_sets=1)
+    val_dataset = next(val_generator)[-1]
+
     for wd, nh, me, cl, ed, nrl, nl in product(param_grid["weight_decay"],
                                                param_grid["n_hidden"],
                                                param_grid["max_epochs"],
@@ -40,7 +45,7 @@ def main(dataset):
                                                param_grid["embed_dim"],
                                                param_grid["num_rnn_layers"],
                                                param_grid["n_layers"]):
-        prob_config = ProblemConfiguration(replace_zeros=True)
+        prob_config = ProblemConfiguration(replace_zeros=True, validate=True)
         model_config = ModelConfiguration(weight_decay=wd,
                                           n_hidden=nh,
                                           max_epochs=me,
@@ -48,9 +53,9 @@ def main(dataset):
                                           embed_dim=ed,
                                           num_rnn_layers=nrl,
                                           n_layers=nl)
-        estimator = Estimator(prob_config, model_config, validate=True)
-
-        estimator.train(dataset)
+        estimator = Estimator(prob_config, model_config)
+        estimator.add_validation(val_dataset)
+        estimator.train(train_dataset)
         val_loss = estimator.last_val_loss  # if val_loss is hooked to estimator.train
 
         if val_loss < best_loss:
