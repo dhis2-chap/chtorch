@@ -148,10 +148,6 @@ class Estimator(ModelBase):
     is_flat = True
     predictor_cls = Predictor
 
-    @property
-    def covariate_names(self):
-        return self.model_configuration.additional_covariates + ['population']
-
     def __init__(self,
                  problem_configuration: ProblemConfiguration,
                  model_configuration: ModelConfiguration):
@@ -159,6 +155,7 @@ class Estimator(ModelBase):
         self.last_val_loss = None
         self.last_train_loss = None
         self.context_length = model_configuration.context_length
+        self.prediction_length = problem_configuration.prediction_length
         self.debug = problem_configuration.debug
         self.validate = problem_configuration.validate
         self.max_epochs = model_configuration.max_epochs
@@ -169,35 +166,13 @@ class Estimator(ModelBase):
         self.n_params = None
         if self.max_epochs is None:
             self.max_epochs = 2500 // self.context_length
-        self._validation_dataset = None
-
-    def set_prediction_length_if_needed(self, data: DataSet):
-        if self.problem_configuration.prediction_length is not None:
-            return
-        frequency = get_frequency(data)
-        if frequency == 'M':
-            self.problem_configuration.prediction_length = 3
-        elif frequency == 'W':
-            self.problem_configuration.prediction_length = 12
 
     def train(self, data: DataSet):
         assert self.is_flat, "non-Flat model is deprecated"
-        self.set_prediction_length_if_needed(data)
-        if self.validate:
-            val_periods = {period.id for period in self._validation_dataset.period_range}
-            logger.info(f'Validation dataset has period range: {self._validation_dataset.period_range}')
-            logger.info(f'Training dataset has period range: {data.period_range}')
-            data_periods = {period.id for period in data.period_range}
-
-            assert len(data_periods.intersection(
-                val_periods)) == 0, f"Validation periods {val_periods} overlap with training periods {data_periods}"
-            assert self._validation_dataset is not None, 'Validation dataset is not set'
-
         DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
-        train_dataset, transformer, target_scaler, val_dataset = self._get_transformed_dataset(
-            data,
-            self._validation_dataset)
-        # train_dataset, val_dataset = self._split_validation(train_dataset)
+        train_dataset, transformer, target_scaler = self._get_transformed_dataset(data)
+        if self.validate:
+            train_dataset, val_dataset = self._split_validation(train_dataset)
 
         for augmentation in self.model_configuration.augmentations:
             train_dataset.add_augmentation(get_augmentation(augmentation))
@@ -214,30 +189,28 @@ class Estimator(ModelBase):
             val_loader = torch.utils.data.DataLoader(val_dataset,
                                                      batch_size=self.model_configuration.batch_size,
                                                      shuffle=False,
-                                                     drop_last=False,
+                                                     drop_last=True,
                                                      num_workers=3)
 
         module = Module(train_dataset.n_categories,
                         train_dataset.n_features,
-                        prediction_length=self.problem_configuration.prediction_length,
+                        prediction_length=self.prediction_length,
                         output_dim=2 + self.problem_configuration.predict_nans,
                         cfg=self.model_configuration)
-        print_parameter_counts(module)
+
         lightning_module = DeepARLightningModule(
             module,
             self.loss,
             target_scaler=target_scaler,
             cfg=self.model_configuration)
 
-        data_name = data.metadata.name if hasattr(data, 'metadata') else 'default'
-        # tb_logger = TensorBoardLogger(save_dir="tb_logs", name=data_name)
         trainer = L.Trainer(max_epochs=self.max_epochs if not self.debug else 3,
-                            accelerator="cpu") # , logger=tb_logger)
+                            accelerator="cpu")
         # tuner = Tuner(trainer)
         # trainer.tune()
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
-        # self.last_val_loss = lightning_module.last_validation_loss
-        # self.last_train_loss = lightning_module.last_train_loss
+        self.last_val_loss = lightning_module.last_validation_loss
+        self.last_train_loss = lightning_module.last_train_loss
         print(lightning_module.last_train_losses)
         return self.predictor_cls(module,
                                   PredictorInfo(
@@ -248,10 +221,7 @@ class Estimator(ModelBase):
                                   transformer,
                                   target_scaler=target_scaler)
 
-    def add_validation(self, val_dataset: DataSet):
-        self._validation_dataset = val_dataset
-
-    def _split_validation(self, train_dataset):
+    def _split_validation(self, train_dataset): # TODO: fix validation, add cross-validation?
         '''
         This needs to be done somewhere else. Per now there is some overlap in the prediction periods
         of train and validation
@@ -270,56 +240,26 @@ class Estimator(ModelBase):
         logger.info(f"Train dataset: {len(train_dataset)} samples, validation dataset: {len(val_dataset)} samples")
         return train_dataset, val_dataset
 
-    @classmethod
-    def load_predictor(cls, path: Path | str):
-        return Predictor.load(path)
-
-    def _get_transformed_dataset(self, data, validation_dataset=None) -> tuple[TSDataSet, StandardScaler]:
+    def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
         """Convert the data to a format suitable for training."""
-        return self._get_single_transformed_dataset(data, validation_dataset)
+        return self._get_single_transformed_dataset(data)
 
-    def _get_single_transformed_dataset(self, data: DataSet, validation_dataset: DataSet | None = None) -> tuple[
-        TSDataSet, StandardScaler, TargetScaler]:
+    def _get_single_transformed_dataset(self, data):
         array_dataset, population, parents = self.tensorifier.convert(data)
         transformer = StandardScaler()
         input_features = array_dataset.shape[-1]
         transformer.fit_transform(array_dataset.reshape(-1, input_features))
-        X = array_dataset.astype(np.float32)
+        X = array_dataset.reshape(array_dataset.shape).astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
         target_scaler = TargetScaler(self.count_transform.forward(y, population))
-
         if self.problem_configuration.replace_zeros:
             y = np.where(y == 0, np.nan, y)
-
         assert len(X) == len(y)
-
-        train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.problem_configuration.prediction_length, parents,
+        train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.prediction_length, parents,
                                       transformer=transformer)
-        if validation_dataset is not None:
-            val_array_dataset, val_population, _ = self.tensorifier.convert(validation_dataset)
-            val_X = val_array_dataset.astype(np.float32)
-            val_y = np.array([series.disease_cases for series in validation_dataset.values()]).T
-            full_X = np.concatenate([X[-self.context_length:], val_X], axis=0)
-            full_y = np.concatenate([y[-self.context_length:], val_y], axis=0)
-            full_population = np.concatenate([population[-self.context_length:], val_population], axis=0)
-            val_dataset = FlatTSDataSet(
-                full_X, full_y, full_population,
-                self.context_length,
-                self.problem_configuration.prediction_length, parents,
-                transformer=transformer)
-            true_length = (len(validation_dataset.period_range) - self.problem_configuration.prediction_length + 1) * len(
-                validation_dataset.locations())
-            logger.info(
-                f'Validation set has {len(val_dataset)} entries. n_periods = {len(validation_dataset.period_range)}-{self.problem_configuration.prediction_length}, n_locations={len(validation_dataset.locations())}')
-            assert len(val_dataset) == true_length, (
-                len(val_dataset), len(validation_dataset.period_range), self.problem_configuration.prediction_length)
-            val_dataset = val_dataset.empty_removed()
-        else:
-            val_dataset = None
-
         train_dataset = train_dataset.empty_removed()
-        return train_dataset, transformer, target_scaler, val_dataset
-
+        return train_dataset, transformer, target_scaler
+    
 
 def get_frequency(dataset):
     return 'M' if isinstance(dataset.period_range[0], Month) else 'W'

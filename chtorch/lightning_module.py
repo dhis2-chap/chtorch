@@ -10,7 +10,7 @@ from chtorch.configuration import ModelConfiguration
 logger = logging.getLogger(__name__)
 
 
-class DeepARLightningModule(L.LightningModule):
+class DeepARLightningModule(L.LightningModule): # model definition
     def __init__(self, module, loss, target_scaler=None, cfg: ModelConfiguration=None):
         super().__init__()
         self.module = module

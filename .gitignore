@@ -109,3 +109,6 @@ venv_autodip/
 
 #lightning_logs
 lightning_logs/
+
+#optuna study file
+*.db

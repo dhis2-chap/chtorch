@@ -35,7 +35,7 @@ def objective(trial, dataset):
     nrl = trial.suggest_categorical("num_rnn_layers", [4, 8, 16, 32])
     nl = trial.suggest_categorical("n_layers", [4, 8, 16, 32])
 
-    prob_config = ProblemConfiguration(replace_zeros=True)
+    prob_config = ProblemConfiguration(replace_zeros=True, validate=True)
     model_config = ModelConfiguration(weight_decay=wd,
                                       n_hidden=nh,
                                       max_epochs=me,

@@ -40,7 +40,7 @@ def main(dataset):
                                                param_grid["embed_dim"],
                                                param_grid["num_rnn_layers"],
                                                param_grid["n_layers"]):
-        prob_config = ProblemConfiguration(replace_zeros=True)
+        prob_config = ProblemConfiguration(replace_zeros=True, validate=True)
         model_config = ModelConfiguration(weight_decay=wd,
                                           n_hidden=nh,
                                           max_epochs=me,
