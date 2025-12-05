@@ -16,7 +16,10 @@ from chapkit.artifact import ArtifactHierarchy
 from chapkit.ml import FunctionalModelRunner
 
 
-async def on_train(config: ModelConfigurationChapKitV2=None, data: pd.DataFrame=None, geo: FeatureCollection | None = None):
+async def on_train(config: ModelConfigurationChapKitV2=None, data: chapkit.data.DataFrame=None, geo: FeatureCollection | None = None):
+    data = data.to_pandas()
+    assert isinstance(data, pd.DataFrame)
+    assert data is not None
     assert config is not None, "Config must be provided"
     #config = ModelConfigurationChapKit.model_validate(config.model_dump())
     assert isinstance(config, ModelConfigurationChapKitV2), f"Config is {type(config)}"
@@ -29,15 +32,22 @@ async def on_train(config: ModelConfigurationChapKitV2=None, data: pd.DataFrame=
     return model.serialize()
 
 
-async def on_predict(config: ModelConfigurationChapKitV2, model: Any, historic: pd.DataFrame, future: pd.DataFrame, geo: FeatureCollection | None = None):
-    historic_data = DataSet.from_pandas(historic)
-    future_data = DataSet.from_pandas(future)
+async def on_predict(config: ModelConfigurationChapKitV2, model: Any, historic: chapkit.data.DataFrame, future: chapkit.data.DataFrame, geo: FeatureCollection | None = None):
+    historic_data = DataSet.from_pandas(historic.to_pandas())
+    future_data = DataSet.from_pandas(future.to_pandas())
     model = Predictor.from_serialized(model)
     y_pred = model.predict(historic_data, future_data)
     pd = y_pred.to_pandas()
     # convert time_period column to str
     pd["time_period"] = pd["time_period"].astype(str)
-    return pd
+    # get stats of dataframe
+    print(pd.describe())
+    df = chapkit.data.DataFrame.from_pandas(pd)
+    print(df.describe())
+    assert len(pd.columns) == len(df.columns)
+    pd.to_csv("prediction_output.csv", index=False)
+    df.to_csv("prediction_output_df.csv")
+    return df
 
 # Create ML service info with metadata
 info = MLServiceInfo(

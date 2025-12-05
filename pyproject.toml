@@ -31,16 +31,18 @@ dependencies = [
     "numpydantic",
     "chapkit",
     "uvicorn[standard]",
+    "fastapi<=0.120.0",
 ]
 
 [tool.uv]
 dev-dependencies = [
     "pytest>=3",
     "hypothesis",
+    "ipython>=9.8.0",
 ]
 
-[tool.uv.sources]
-chapkit = { git = "https://github.com/dhis2-chap/chapkit" }
+#[tool.uv.sources]
+#chapkit = { git = "https://github.com/dhis2-chap/chapkit" }
 
 [tool.hatch.metadata]
 allow-direct-references = true
