@@ -104,3 +104,6 @@ ENV/
 # IDE settings
 .vscode/
 .idea/
+
+# HPO study database created by optuna runs
+chtorch/study.db

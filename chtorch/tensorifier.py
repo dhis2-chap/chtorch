@@ -46,7 +46,7 @@ class TensorOutput(BaseModel):
 
 
 def concatenate_pydantic(data: list[TensorOutput]) -> TensorOutput:
-    return TensorOutput(**{key: np.concatenate([getattr(d, key) for d in data]) for key in data[0].dict().keys()})
+    return TensorOutput(**{key: np.concatenate([getattr(d, key) for d in data]) for key in data[0].model_dump().keys()})
 
 
 def smooth_population(population: np.ndarray) -> np.ndarray:

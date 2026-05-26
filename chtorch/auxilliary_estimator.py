@@ -21,13 +21,16 @@ class AuxilliaryEstimator(Estimator):
         super().__init__(model_configuration=model_configuration, problem_configuration=problem_configuration)
         self._auxilliary_datasets = auxilliary_datasets
 
-    def _get_transformed_dataset(self, data) -> tuple[TSDataSet, StandardScaler]:
+    def _get_transformed_dataset(self, data, validation_dataset=None) -> tuple[TSDataSet, StandardScaler, MultiTargetScaler, TSDataSet | None]:
         """Convert the data to a format suitable for training."""
         tuples = [self._get_single_transformed_dataset(dataset) for dataset in self._auxilliary_datasets.values()]
-        datasets = [t[0] for t in tuples]
+        aux_datasets = [t[0] for t in tuples]
+        aux_target_scalers = [t[2] for t in tuples]
 
-        main_dataset, transformer, target_scaler = super()._get_transformed_dataset(data)
-        target_scaler = MultiTargetScaler([target_scaler] + [t[-1] for t in tuples])
-        datasets = [main_dataset] + datasets
+        main_dataset, transformer, target_scaler, val_dataset = super()._get_transformed_dataset(
+            data, validation_dataset
+        )
+        target_scaler = MultiTargetScaler([target_scaler] + aux_target_scalers)
+        datasets = [main_dataset] + aux_datasets
         multi_dataset = MultiDataset(datasets, main_dataset_weight=10)
-        return multi_dataset, transformer, target_scaler
+        return multi_dataset, transformer, target_scaler, val_dataset

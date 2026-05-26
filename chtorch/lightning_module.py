@@ -20,17 +20,20 @@ class DeepARLightningModule(L.LightningModule):
         self.last_validation_losses = {}
         self.last_train_losses = {}
         self._target_scaler = target_scaler
-        self.save_hyperparameters(cfg.dict())
+        self.save_hyperparameters(cfg.model_dump())
         self.cfg = cfg
 
     @property
     def last_validation_loss(self):
-        return sum(self.last_validation_losses.values()) / len(
-            self.last_validation_losses) if self.last_validation_losses else 0
+        if not self.last_validation_losses:
+            return float('nan')
+        return float(sum(self.last_validation_losses.values()) / len(self.last_validation_losses))
 
     @property
     def last_train_loss(self):
-        return sum(self.last_train_losses.values()) / len(self.last_train_losses)
+        if not self.last_train_losses:
+            return float('nan')
+        return float(sum(self.last_train_losses.values()) / len(self.last_train_losses))
 
     def forward(self, *args: Any, **kwargs: Any) -> Any:
         return self.module(*args, **kwargs)
@@ -46,7 +49,7 @@ class DeepARLightningModule(L.LightningModule):
         loss = self.loss(log_rate, batch.y, batch.population) + self.cfg.past_ratio * self.loss(past_log_rate,
                                                                                 batch.past_y[:, 1:],
                                                                                    batch.population)
-        self.last_train_losses[batch_idx] = loss
+        self.last_train_losses[batch_idx] = loss.detach().item()
         self.log("train_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
         return loss
 
@@ -58,7 +61,7 @@ class DeepARLightningModule(L.LightningModule):
                 log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], log_rate)
 
             loss = self.loss(log_rate, batch.y, batch.population)
-            self.last_validation_losses[batch_idx] = loss
+            self.last_validation_losses[batch_idx] = loss.detach().item()
             self.log("validation_loss", loss, prog_bar=True, logger=True, on_step=False, on_epoch=True)
             return loss
 

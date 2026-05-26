@@ -60,6 +60,7 @@ class PredictorInfo(BaseModel):
     problem_configuration: ProblemConfiguration
     n_features: int
     n_categories: list[int]
+    output_dim: int = 2
 
 
 class Predictor(ModelBase):
@@ -88,23 +89,30 @@ class Predictor(ModelBase):
         path = Path(path)
         torch.save(self.module.state_dict(), path)
         dump(self.transformer, path.with_suffix('.transformer'))
+        if self._target_scaler is not None:
+            dump(self._target_scaler, path.with_suffix('.target_scaler'))
         with open(path.with_suffix('.predictor_info.json'), 'w') as f:
             f.write(self._predictor_info.model_dump_json())
 
     @classmethod
     def load(cls, path: str | Path):
         path = Path(path)
-        predictor_info = PredictorInfo.parse_file(path.with_suffix('.predictor_info.json'))
+        info_path = path.with_suffix('.predictor_info.json')
+        predictor_info = PredictorInfo.model_validate_json(info_path.read_text())
         module = FlatRNN(
             num_categories=predictor_info.n_categories,
             input_feature_dim=predictor_info.n_features,
             prediction_length=predictor_info.problem_configuration.prediction_length,
+            output_dim=predictor_info.output_dim,
             cfg=predictor_info.model_configuration)
-        module.load_state_dict(torch.load(path))
+        module.load_state_dict(torch.load(path, weights_only=True))
         transformer = load(path.with_suffix('.transformer'))
+        scaler_path = path.with_suffix('.target_scaler')
+        target_scaler = load(scaler_path) if scaler_path.exists() else None
         return cls(module,
                    predictor_info,
-                   transformer)
+                   transformer,
+                   target_scaler=target_scaler)
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
@@ -183,7 +191,7 @@ class Estimator(ModelBase):
     def train(self, data: DataSet):
         assert self.is_flat, "non-Flat model is deprecated"
         self.set_prediction_length_if_needed(data)
-        if self.validate:
+        if self.validate and self._validation_dataset is not None:
             val_periods = {period.id for period in self._validation_dataset.period_range}
             logger.info(f'Validation dataset has period range: {self._validation_dataset.period_range}')
             logger.info(f'Training dataset has period range: {data.period_range}')
@@ -191,13 +199,15 @@ class Estimator(ModelBase):
 
             assert len(data_periods.intersection(
                 val_periods)) == 0, f"Validation periods {val_periods} overlap with training periods {data_periods}"
-            assert self._validation_dataset is not None, 'Validation dataset is not set'
 
-        DataSet, Module = (TSDataSet, RNNWithLocationEmbedding) if (not self.is_flat) else (FlatTSDataSet, FlatRNN)
+        Module = FlatRNN if self.is_flat else RNNWithLocationEmbedding
         train_dataset, transformer, target_scaler, val_dataset = self._get_transformed_dataset(
             data,
             self._validation_dataset)
-        # train_dataset, val_dataset = self._split_validation(train_dataset)
+        if self.validate and val_dataset is None:
+            # No external validation set was provided — split the training
+            # dataset internally. Used by HPO cross-validation.
+            train_dataset, val_dataset = self._split_validation(train_dataset)
 
         for augmentation in self.model_configuration.augmentations:
             train_dataset.add_augmentation(get_augmentation(augmentation))
@@ -217,10 +227,11 @@ class Estimator(ModelBase):
                                                      drop_last=False,
                                                      num_workers=3)
 
+        output_dim = 2 + int(self.problem_configuration.predict_nans)
         module = Module(train_dataset.n_categories,
                         train_dataset.n_features,
                         prediction_length=self.problem_configuration.prediction_length,
-                        output_dim=2 + self.problem_configuration.predict_nans,
+                        output_dim=output_dim,
                         cfg=self.model_configuration)
         print_parameter_counts(module)
         lightning_module = DeepARLightningModule(
@@ -236,15 +247,15 @@ class Estimator(ModelBase):
         # tuner = Tuner(trainer)
         # trainer.tune()
         trainer.fit(lightning_module, loader, val_loader if self.validate else None)
-        # self.last_val_loss = lightning_module.last_validation_loss
-        # self.last_train_loss = lightning_module.last_train_loss
-        print(lightning_module.last_train_losses)
+        self.last_val_loss = lightning_module.last_validation_loss
+        self.last_train_loss = lightning_module.last_train_loss
         return self.predictor_cls(module,
                                   PredictorInfo(
                                       problem_configuration=self.problem_configuration,
                                       model_configuration=self.model_configuration,
                                       n_features=train_dataset.n_features,
-                                      n_categories=train_dataset.n_categories),
+                                      n_categories=train_dataset.n_categories,
+                                      output_dim=output_dim),
                                   transformer,
                                   target_scaler=target_scaler)
 
@@ -283,7 +294,7 @@ class Estimator(ModelBase):
         array_dataset, population, parents = self.tensorifier.convert(data)
         transformer = StandardScaler()
         input_features = array_dataset.shape[-1]
-        transformer.fit_transform(array_dataset.reshape(-1, input_features))
+        transformer.fit(array_dataset.reshape(-1, input_features))
         X = array_dataset.astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
         target_scaler = TargetScaler(self.count_transform.forward(y, population))

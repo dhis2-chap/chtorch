@@ -195,10 +195,10 @@ def evaluate(dataset_path: str,
 
 
 def get_config(cfg, cfg_path):
-    cfg_d = cfg.dict(exclude_unset=True)
+    cfg_d = cfg.model_dump(exclude_unset=True)
     if cfg_path:
-        model_configuration = ModelConfiguration.parse_file(cfg_path)
-        model_configuration = model_configuration.copy(update=cfg_d)
+        model_configuration = ModelConfiguration.model_validate_json(Path(cfg_path).read_text())
+        model_configuration = model_configuration.model_copy(update=cfg_d)
     else:
         model_configuration = cfg
     return model_configuration
@@ -222,14 +222,14 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list, 
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     try:
         hash = get_commit_hash()
-    except Exception:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         hash = 'nohash'
     run_id = f'{timestamp}_{hash}'
     filename = f'{stem}_{comment}evaluation_{run_id}.json'
     with open(filename, 'w') as f:
-        f.write(response.json())
+        f.write(response.model_dump_json())
     with open(f'{filename}.params.json', 'w') as f:
-        f.write(model_configuration.json())
+        f.write(model_configuration.model_dump_json())
     with open(f'{filename}.score.txt', 'w') as f:
         f.write(str(score))
     logger.info(f'Evaluation results saved to {filename}')
@@ -246,7 +246,7 @@ def _write_output(dataset, dataset_path, model_configuration, predictions_list, 
             quantiles=[0.05, 0.25, 0.5, 0.75, 0.95],
             real_data=dataset_to_datalist(a_dataset, 'dengue'))
         with open(f'{stem}_evaluation_aggregated_{run_id}.json', 'w') as f:
-            f.write(a_response.json())
+            f.write(a_response.model_dump_json())
 
 @app.command()
 def hp_investigation(dataset_path: str, p_cfg: ProblemConfiguration = ProblemConfiguration()):
