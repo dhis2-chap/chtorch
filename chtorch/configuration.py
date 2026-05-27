@@ -20,6 +20,7 @@ class ModelConfiguration(RNNConfiguration, TensorifierConfig, extra='forbid'):
     augmentations: list[str] = []  # Regularization
     context_length: int = 12
     past_ratio: float = 0.2  # Regularization
+    num_workers: int = 0  # DataLoader workers; >0 only helps for very large datasets
 
 
 class ProblemConfiguration(BaseModel):

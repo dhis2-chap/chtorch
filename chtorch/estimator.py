@@ -215,17 +215,23 @@ class Estimator(ModelBase):
         assert len(train_dataset.n_categories) == train_dataset[0][1].shape[
             -1], f"{train_dataset.n_categories} != {train_dataset[0][1].shape[-1]}"
 
+        num_workers = self.model_configuration.num_workers
+        loader_kwargs = dict(num_workers=num_workers)
+        if num_workers > 0:
+            # Avoid respawning worker processes every epoch — that was a
+            # 14× slowdown on this dataset before the default flipped to 0.
+            loader_kwargs['persistent_workers'] = True
         loader = torch.utils.data.DataLoader(train_dataset,
                                              batch_size=self.model_configuration.batch_size,
                                              shuffle=True,
                                              drop_last=True,
-                                             num_workers=3)
+                                             **loader_kwargs)
         if self.validate:
             val_loader = torch.utils.data.DataLoader(val_dataset,
                                                      batch_size=self.model_configuration.batch_size,
                                                      shuffle=False,
                                                      drop_last=False,
-                                                     num_workers=3)
+                                                     **loader_kwargs)
 
         output_dim = 2 + int(self.problem_configuration.predict_nans)
         module = Module(train_dataset.n_categories,
