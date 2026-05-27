@@ -35,7 +35,10 @@ def test_aux_get_transformed_dataset_returns_four_values(ch_dataset, auxilliary_
     estimator = _make_estimator(auxilliary_datasets)
     train, transformer, target_scaler, val = estimator._get_transformed_dataset(ch_dataset)
     assert isinstance(train, MultiDataset)
-    assert isinstance(target_scaler, MultiTargetScaler)
+    # target_scaler is None now that the per-location TargetScaler has been
+    # dropped. If a future change re-enables it (e.g. via config), this
+    # assertion should be updated to match.
+    assert target_scaler is None
     assert val is None  # no validation_dataset passed
 
 

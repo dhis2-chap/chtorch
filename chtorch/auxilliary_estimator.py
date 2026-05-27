@@ -30,7 +30,11 @@ class AuxilliaryEstimator(Estimator):
         main_dataset, transformer, target_scaler, val_dataset = super()._get_transformed_dataset(
             data, validation_dataset
         )
-        target_scaler = MultiTargetScaler([target_scaler] + aux_target_scalers)
+        all_scalers = [target_scaler] + aux_target_scalers
+        if all(s is not None for s in all_scalers):
+            target_scaler = MultiTargetScaler(all_scalers)
+        else:
+            target_scaler = None
         datasets = [main_dataset] + aux_datasets
         multi_dataset = MultiDataset(datasets, main_dataset_weight=10)
         return multi_dataset, transformer, target_scaler, val_dataset

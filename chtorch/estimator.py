@@ -306,7 +306,12 @@ class Estimator(ModelBase):
         transformer.fit(array_dataset.reshape(-1, input_features))
         X = array_dataset.astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
-        target_scaler = TargetScaler(self.count_transform.forward(y, population))
+        # Drop the per-location TargetScaler: with IncidenceRateTransform the
+        # model output already lives in log1p(rate) space, which is the same
+        # scale as the StandardScaler-normalised AR input. The previous
+        # per-location rescale created an asymmetry (global-stats input,
+        # per-loc-stats output) that dampened the model's surge response.
+        target_scaler = None
 
         if self.problem_configuration.replace_zeros:
             y = np.where(y == 0, np.nan, y)
