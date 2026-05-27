@@ -48,12 +48,8 @@ class Log1pTransform(CountTransform):
         return xp.log1p(numerator)
 
     def inverse(self, transformed, denominator):
-        # True inverse of log1p — `exp(t) - 1` rather than `exp(t)`.
-        # This keeps the autoregressive input feature (log1p(cases)) on the
-        # same scale the model is expected to produce, so eta=0 means a
-        # predicted mean of 0 (instead of -∞).
         xp = _array_module(transformed)
-        return xp.expm1(transformed)
+        return xp.exp(transformed)
 
 
 def _array_module(x):
@@ -70,8 +66,5 @@ class Logp1RateTransform(CountTransform):
         return xp.log1p(numerator) - xp.log(denominator)
 
     def inverse(self, transformed, denominator):
-        # True inverse of `log1p(num) - log(denom)` is
-        #   num = exp(transformed) * denom - 1
-        # (the previous form was missing the −1).
         xp = _array_module(transformed)
-        return xp.exp(transformed) * denominator - 1
+        return xp.exp(transformed + xp.log(denominator))

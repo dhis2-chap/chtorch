@@ -35,27 +35,13 @@ class MaskedNANLoss(abc.ABC, nn.Module):
         return loss
 
 
-_MIN_TOTAL_COUNT = 1e-6
-
-
-def _safe_total_count(eta, population, count_transform):
-    """Map eta[0] to the NB total_count, clamping at a tiny floor.
-
-    The CountTransform.inverse is the mathematical inverse of forward
-    (e.g. expm1 for Log1pTransform), so mean can legitimately be 0 when
-    the model predicts no cases. torch's NegativeBinomial requires
-    total_count > 0, so we clamp before dividing by exp(eta[1])."""
-    mean = count_transform.inverse(eta[..., 0], population)
-    return (mean / torch.exp(eta[..., 1])).clamp_min(_MIN_TOTAL_COUNT)
-
-
 class NegativeBinomialLoss(MaskedNANLoss):
     n_parameters = 2
 
     @staticmethod
     def get_dist(eta, population, count_transform):
         return torch.distributions.NegativeBinomial(
-            total_count=_safe_total_count(eta, population, count_transform),
+            total_count=count_transform.inverse(eta[..., 0], population) / torch.exp(eta[..., 1]),
             logits=eta[..., 1])
 
 
@@ -64,8 +50,7 @@ class PoissonLoss(MaskedNANLoss):
 
     @staticmethod
     def get_dist(eta, population, count_transform):
-        rate = count_transform.inverse(eta[..., 0], population).clamp_min(_MIN_TOTAL_COUNT)
-        return torch.distributions.Poisson(rate=rate)
+        return torch.distributions.Poisson(rate=count_transform.inverse(eta[..., 0], population))
 
 
 class NBLossWithNaN(NegativeBinomialLoss):
@@ -75,7 +60,7 @@ class NBLossWithNaN(NegativeBinomialLoss):
     def get_dist(eta, population, count_transform):
         return NegativeBinomialWithNan(
             nan_logits=eta[..., 2],
-            total_count=_safe_total_count(eta, population, count_transform),
+            total_count=count_transform.inverse(eta[..., 0], population) / torch.exp(eta[..., 1]),
             logits=eta[..., 1])
 
     def forward(self, eta, y_true, population):
