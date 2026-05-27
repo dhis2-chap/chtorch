@@ -104,6 +104,11 @@ class Tensorifier:
                 assert False, f"Feature {name} contains NaNs: {column}"
             if np.isinf(column).any():
                 assert False, f"Feature {name} contains infs: {column}"
+        # Lagged copies of each climate covariate, grouped by lag so feature
+        # order is [cov0, cov1, ..., cov0_lag1, cov1_lag1, ..., cov0_lag2, ...]
+        for lag in self.config.climate_lags:
+            for col in feature_columns[:len(self.features)]:
+                feature_columns.append(_shift_back(col, lag))
         sin_cos = np.array(
             [seasonal_sin_cos(period.start_timestamp.date) for period in location_data.time_period])
         sin_year = sin_cos[:, 0]
@@ -147,3 +152,13 @@ def seasonal_sin_cos(dt: datetime) -> tuple[float, float]:
     annual seasonal feature instead of a sawtooth that jumps at year-end."""
     angle = 2.0 * np.pi * dt.timetuple().tm_yday / 365.0
     return float(np.sin(angle)), float(np.cos(angle))
+
+
+def _shift_back(col: np.ndarray, lag: int) -> np.ndarray:
+    """Return `col` shifted back by `lag` periods. The first `lag` slots are
+    filled with col[0] so the output keeps the same length as the input.
+    A non-positive lag returns the column unchanged."""
+    if lag <= 0:
+        return col
+    pad = np.full(lag, col[0], dtype=col.dtype)
+    return np.concatenate([pad, col[:-lag]])

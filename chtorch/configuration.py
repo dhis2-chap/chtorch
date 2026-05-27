@@ -8,6 +8,11 @@ class TensorifierConfig(BaseModel):
     previous_cases: bool = False
     use_population: bool = True
     additional_covariates: list[str] = ['rainfall', 'mean_temperature']
+    # Lagged copies of each additional_covariate to add as features.
+    # e.g. [1, 2] adds the 1- and 2-period-back values of every covariate.
+    # Useful for diseases with delayed climate response (e.g. dengue
+    # responds to rainfall 1–2 months later via mosquito breeding).
+    climate_lags: list[int] = []
 
 
 class ModelConfiguration(RNNConfiguration, TensorifierConfig, extra='forbid'):
