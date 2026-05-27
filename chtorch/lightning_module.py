@@ -72,9 +72,19 @@ class DeepARLightningModule(L.LightningModule):
         return optimizer
 
     def _get_decay_dict(self):
+        # Three buckets:
+        #   no_decay: biases & norm layers
+        #   embed:    every embedding gets 10× weight_decay
+        #   decay:    everything else
+        # The previous implementation also applied 100× to params whose name
+        # contained '.0.', which matched the primary location embedding
+        # (`location_embeddings.0.weight`) — the very thing we want the model
+        # to learn most aggressively — and only 10× to the smaller parent
+        # embedding at index 1. That was almost certainly the inverse of the
+        # author's intent; collapsing to a single 'embed' bucket avoids the
+        # foot-gun.
         decay = []
         embed_decay = []
-        level_2_decay = []
         no_decay = []
         for name, param in self.named_parameters():
             if not param.requires_grad:
@@ -82,17 +92,13 @@ class DeepARLightningModule(L.LightningModule):
             if name.endswith("bias") or "norm" in name.lower():
                 no_decay.append(param)
             elif 'embed' in name:
-                if '.0.' in name:
-                    level_2_decay.append(param)
-                else:
-                    embed_decay.append(param)
+                embed_decay.append(param)
             else:
                 decay.append(param)
         decay_dict = [
             {"params": decay, "weight_decay": self.weight_decay},
             {"params": embed_decay, "weight_decay": self.weight_decay * 10},
-            {"params": level_2_decay, "weight_decay": self.weight_decay * 100},
-            {"params": no_decay, "weight_decay": 0.0}
+            {"params": no_decay, "weight_decay": 0.0},
         ]
-        logger.info(f"Decay params: {len(decay)}, embed: {len(embed_decay)}, level_2: {len(level_2_decay)}, no decay: {len(no_decay)}")
+        logger.info(f"Decay params: {len(decay)}, embed: {len(embed_decay)}, no decay: {len(no_decay)}")
         return decay_dict
