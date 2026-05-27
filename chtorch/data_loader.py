@@ -4,19 +4,22 @@ import torch
 import numpy as np
 
 # last_log_rate: un-normalized log1p(rate) at the final historic step,
-# per-sample scalar. Used as a persistence baseline (skip connection) so
-# the model only learns deviations from "stay at the most recent value".
+#   per-sample scalar. Persistence baseline for the skip connection.
+# per_loc_std: per-location std of log1p(rate) over training data,
+#   per-sample scalar. Network output (residual) is multiplied by this
+#   so the model learns deviations from persistence in per-location
+#   sigma units (symmetric per-loc normalisation on the output side).
 Entry = namedtuple(
     'Entry',
-    ['X', 'locations', 'y', 'population', 'past_y', 'last_log_rate'],
+    ['X', 'locations', 'y', 'population', 'past_y', 'last_log_rate', 'per_loc_std'],
 )
-Entry.__new__.__defaults__ = (None,)
+Entry.__new__.__defaults__ = (None, None)
 
 
 class TSDataSet(torch.utils.data.Dataset):
     def __init__(self, X, y, population, context_length,
                  prediction_length, parents=None, indices=None,
-                 augmentations=None, transformer=None):
+                 augmentations=None, transformer=None, per_loc_std=None):
         if y is not None:
             assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         self.X = X  # time, location, feature
@@ -32,6 +35,11 @@ class TSDataSet(torch.utils.data.Dataset):
         self.augmentations = augmentations if augmentations is not None else []
         self.indices = indices
         self.transformer = transformer
+        # per_loc_std: (n_locations,) — std of log1p(rate) per location over
+        # training data. None defaults to 1.0 (no scaling on residual).
+        self.per_loc_std = (
+            per_loc_std.astype(np.float32) if per_loc_std is not None else None
+        )
 
     def _transform_x(self, x):
         if self.transformer is not None:
@@ -62,7 +70,7 @@ class TSDataSet(torch.utils.data.Dataset):
             indices = np.asanyarray(self.indices)[indices]
         return self.__class__(self.X, self.y, self.population, self.context_length, self.prediction_length,
                               parents=self.parents, indices=indices, augmentations=self.augmentations,
-                              transformer=self.transformer)
+                              transformer=self.transformer, per_loc_std=self.per_loc_std)
 
     def __len__(self):
         if self.indices is not None:
@@ -104,6 +112,7 @@ class FlatTSDataSet(TSDataSet):
         # Tensorifier puts target_column as the last feature (un-normalized
         # log1p of incidence rate). Grab it BEFORE _transform_x scales x.
         last_log_rate = np.float32(self.X[i + self.context_length - 1, j, -1])
+        ploc_std = np.float32(self.per_loc_std[j]) if self.per_loc_std is not None else np.float32(1.0)
         x = self.X[i:i + self.context_length, j]
         x = self._transform_x(x)
         y = self.y[i + self.context_length:i + self.total_length, j]
@@ -112,7 +121,7 @@ class FlatTSDataSet(TSDataSet):
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         p = self.parents[j]
         locations = np.array([(j, p) for _ in range(self.context_length)])
-        output = Entry(x, locations, y, population, past_y, last_log_rate)
+        output = Entry(x, locations, y, population, past_y, last_log_rate, ploc_std)
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
         return output
@@ -126,6 +135,10 @@ class FlatTSDataSet(TSDataSet):
         # Per-location persistence baseline = most recent un-normalized
         # target_column (the last feature of X).
         last_log_rate = self.X[-1, :, -1].astype(np.float32)
+        if self.per_loc_std is not None:
+            ploc_std = self.per_loc_std.astype(np.float32)
+        else:
+            ploc_std = np.ones(self.n_locations, dtype=np.float32)
         x = self.X[-self.context_length:, ...].swapaxes(0, 1)
         shape = x.shape
         x = self._transform_x(x.reshape(-1, shape[-1])).reshape(shape)
@@ -134,7 +147,8 @@ class FlatTSDataSet(TSDataSet):
                      None,
                      torch.from_numpy(repeated_population),
                      None,
-                     torch.from_numpy(last_log_rate))
+                     torch.from_numpy(last_log_rate),
+                     torch.from_numpy(ploc_std))
 
 
 class MultiDataset(torch.utils.data.Dataset):

@@ -150,7 +150,7 @@ class RNNWithLocationEmbedding(nn.Module):
 
 class FlatRNN(RNNWithLocationEmbedding):
 
-    def forward(self, x, locations, last_log_rate=None):
+    def forward(self, x, locations, last_log_rate=None, per_loc_std=None):
         offset_time = True
         batch_size, time_steps, feature_dim = x.shape
         total_length = self.prediction_length + time_steps - 1
@@ -175,16 +175,20 @@ class FlatRNN(RNNWithLocationEmbedding):
 
         reshaped = decoded.reshape(batch_size, total_length, self.output_dim)
 
-        # Persistence skip: add the un-normalized log1p-rate from the final
-        # historic step to the mean head. Network output is now the
-        # *deviation* from "stay at the most recent value" — eta_mean=0
-        # predicts the last observation. The dispersion logit (channel 1)
-        # and any extra channels are untouched.
+        # Persistence skip + per-location residual unit:
+        #   eta_mean = network_out * per_loc_std + last_log_rate
+        # network_out=0 ⇒ predict last observation; non-zero outputs are
+        # interpreted as deviations in per-location sigma units of
+        # log1p(rate). Only the mean channel is touched; the dispersion
+        # logit (channel 1) and any extra channels are untouched.
         if last_log_rate is not None:
             llr = last_log_rate.to(dtype=reshaped.dtype, device=reshaped.device)
-            # llr shape: (batch,) → (batch, 1, 1) so it broadcasts over time
             llr = llr.reshape(batch_size, 1, 1)
-            mean_channel = reshaped[..., :1] + llr
+            mean_channel = reshaped[..., :1]
+            if per_loc_std is not None:
+                pls = per_loc_std.to(dtype=reshaped.dtype, device=reshaped.device)
+                mean_channel = mean_channel * pls.reshape(batch_size, 1, 1)
+            mean_channel = mean_channel + llr
             reshaped = torch.cat([mean_channel, reshaped[..., 1:]], dim=-1)
 
         return (reshaped[:, -self.prediction_length:].squeeze(-1),

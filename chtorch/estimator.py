@@ -69,7 +69,8 @@ class Predictor(ModelBase):
     def __init__(self, module,
                  predictor_info: PredictorInfo,
                  transformer: StandardScaler,
-                 target_scaler=None):
+                 target_scaler=None,
+                 per_loc_std=None):
         super().__init__()
         problem_configuration = predictor_info.problem_configuration
         model_configuration = predictor_info.model_configuration
@@ -83,7 +84,9 @@ class Predictor(ModelBase):
         self.count_transform = IncidenceRateTransform()
         self._loss_class = self._get_loss_class()
         self._target_scaler = target_scaler
-        # assert target_scaler is not None, target_scaler
+        # Per-location std of log1p(rate), shape (n_locations,). Used to
+        # scale the network's residual at predict time. None = identity.
+        self._per_loc_std = per_loc_std
 
     def save(self, path: Path | str):
         path = Path(path)
@@ -91,6 +94,8 @@ class Predictor(ModelBase):
         dump(self.transformer, path.with_suffix('.transformer'))
         if self._target_scaler is not None:
             dump(self._target_scaler, path.with_suffix('.target_scaler'))
+        if self._per_loc_std is not None:
+            dump(self._per_loc_std, path.with_suffix('.per_loc_std'))
         with open(path.with_suffix('.predictor_info.json'), 'w') as f:
             f.write(self._predictor_info.model_dump_json())
 
@@ -109,20 +114,23 @@ class Predictor(ModelBase):
         transformer = load(path.with_suffix('.transformer'))
         scaler_path = path.with_suffix('.target_scaler')
         target_scaler = load(scaler_path) if scaler_path.exists() else None
+        ploc_std_path = path.with_suffix('.per_loc_std')
+        per_loc_std = load(ploc_std_path) if ploc_std_path.exists() else None
         return cls(module,
                    predictor_info,
                    transformer,
-                   target_scaler=target_scaler)
+                   target_scaler=target_scaler,
+                   per_loc_std=per_loc_std)
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
         historic_tensor = historic_tensor.astype(np.float32)
         _DataSet = TSDataSet if not self.is_flat else FlatTSDataSet
         ts_dataset = _DataSet(historic_tensor, None, population, self.context_length, self.problem_configuration.prediction_length, parents,
-                              transformer=self.transformer)
+                              transformer=self.transformer, per_loc_std=self._per_loc_std)
         batch = ts_dataset.last_prediction_instance()
         with torch.no_grad():
-            eta, *_ = self.module(batch.X, batch.locations, last_log_rate=batch.last_log_rate)
+            eta, *_ = self.module(batch.X, batch.locations, last_log_rate=batch.last_log_rate, per_loc_std=batch.per_loc_std)
             if self._target_scaler is not None:
                 locations = batch.locations[:, 0, 0]
                 assert len(np.unique(locations)) == len(locations)
@@ -266,7 +274,8 @@ class Estimator(ModelBase):
                                       n_categories=train_dataset.n_categories,
                                       output_dim=output_dim),
                                   transformer,
-                                  target_scaler=target_scaler)
+                                  target_scaler=target_scaler,
+                                  per_loc_std=getattr(train_dataset, 'per_loc_std', None))
 
     def add_validation(self, val_dataset: DataSet):
         self._validation_dataset = val_dataset
@@ -306,11 +315,15 @@ class Estimator(ModelBase):
         transformer.fit(array_dataset.reshape(-1, input_features))
         X = array_dataset.astype(np.float32)
         y = np.array([series.disease_cases for series in data.values()]).T
-        # Drop the per-location TargetScaler: with IncidenceRateTransform the
-        # model output already lives in log1p(rate) space, which is the same
-        # scale as the StandardScaler-normalised AR input. The previous
-        # per-location rescale created an asymmetry (global-stats input,
-        # per-loc-stats output) that dampened the model's surge response.
+        # Per-location std of log1p(rate) — used to scale the network's
+        # residual output (symmetric per-loc normalisation on the output side).
+        # The persistence skip provides the per-loc baseline; this provides
+        # the per-loc unit.
+        y_log_rate = self.count_transform.forward(y, population)
+        per_loc_std = np.nanstd(y_log_rate, axis=0)
+        per_loc_std = np.where(
+            (per_loc_std == 0) | np.isnan(per_loc_std), 1.0, per_loc_std
+        ).astype(np.float32)
         target_scaler = None
 
         if self.problem_configuration.replace_zeros:
@@ -319,7 +332,7 @@ class Estimator(ModelBase):
         assert len(X) == len(y)
 
         train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.problem_configuration.prediction_length, parents,
-                                      transformer=transformer)
+                                      transformer=transformer, per_loc_std=per_loc_std)
         if validation_dataset is not None:
             val_array_dataset, val_population, _ = self.tensorifier.convert(validation_dataset)
             val_X = val_array_dataset.astype(np.float32)
@@ -331,7 +344,7 @@ class Estimator(ModelBase):
                 full_X, full_y, full_population,
                 self.context_length,
                 self.problem_configuration.prediction_length, parents,
-                transformer=transformer)
+                transformer=transformer, per_loc_std=per_loc_std)
             true_length = (len(validation_dataset.period_range) - self.problem_configuration.prediction_length + 1) * len(
                 validation_dataset.locations())
             logger.info(
