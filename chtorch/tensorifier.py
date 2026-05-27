@@ -147,13 +147,3 @@ def seasonal_sin_cos(dt: datetime) -> tuple[float, float]:
     annual seasonal feature instead of a sawtooth that jumps at year-end."""
     angle = 2.0 * np.pi * dt.timetuple().tm_yday / 365.0
     return float(np.sin(angle)), float(np.cos(angle))
-
-
-def seasonal_array(period_range) -> np.ndarray:
-    """(T, 2) array of (sin, cos) of the year position for each period.
-    Used to make the decoder aware of which calendar month it is predicting
-    for — seasonal features are deterministically known into the future."""
-    return np.array(
-        [seasonal_sin_cos(p.start_timestamp.date) for p in period_range],
-        dtype=np.float32,
-    )
