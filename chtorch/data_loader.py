@@ -159,12 +159,10 @@ class MultiDataset(torch.utils.data.Dataset):
         locations = locations.copy()
         locations[:, 0] += self._category_offsets[dataset_idx]
         locations[:, 1] = dataset_idx
-        # assert all(i<n for i, n in zip(np.max(locations, axis=0), self.n_categories)), \
-        #    f"Locations {locations} exceed categories {self.n_categories}"
-        output = x, locations, y, population
+        output = Entry(x, locations, y, population, past_y)
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
-        return Entry(*output)
+        return output
 
     def _split_index(self, item):
         if item >= self._len:

@@ -43,6 +43,7 @@ def test_estimator(ch_dataset, model_configuration, problem_configuration):
 def test_validation(ch_dataset, model_configuration, problem_configuration):
     run_validation_training(ch_dataset, model_configuration, problem_configuration)
 
+@pytest.mark.slow
 def test_hpo_estimator(ch_dataset, hpo_model_configuration, problem_configuration):
     estimator = HPOEstimator(problem_configuration, hpo_model_configuration)
     evaluate_model(estimator, ch_dataset, prediction_length=3,
@@ -68,3 +69,43 @@ def test_save(train_test, tmp_path):
     predictor.save(out_path)
     predictor.load(out_path)
     # assert out_path.exists()
+
+
+def test_save_load_roundtrip_with_predict_nans(train_test, tmp_path):
+    """Loading a predictor trained with predict_nans=True must construct the
+    module with the right output_dim, or load_state_dict will fail."""
+    import torch
+    from chtorch.estimator import Predictor
+
+    train, _ = train_test
+    estimator = Estimator(
+        ProblemConfiguration(prediction_length=3, debug=True, predict_nans=True),
+        ModelConfiguration(context_length=12),
+    )
+    predictor = estimator.train(train)
+    out_path = tmp_path / 'test_model_nans'
+    predictor.save(out_path)
+
+    loaded = Predictor.load(out_path)
+    assert loaded.module.output_dim == 3
+    for k, v in predictor.module.state_dict().items():
+        torch.testing.assert_close(loaded.module.state_dict()[k], v)
+
+
+def test_save_load_roundtrip_preserves_target_scaler(train_test, tmp_path):
+    import torch
+    from chtorch.estimator import Predictor
+
+    train, _ = train_test
+    estimator = Estimator(
+        ProblemConfiguration(prediction_length=3, debug=True),
+        ModelConfiguration(context_length=12),
+    )
+    predictor = estimator.train(train)
+    out_path = tmp_path / 'test_model_scaler'
+    predictor.save(out_path)
+
+    loaded = Predictor.load(out_path)
+    assert loaded._target_scaler is not None
+    torch.testing.assert_close(loaded._target_scaler.mu, predictor._target_scaler.mu)
+    torch.testing.assert_close(loaded._target_scaler.std, predictor._target_scaler.std)

@@ -7,7 +7,7 @@ name = "chtorch"
 version = "0.0.1"
 description = "Utility packages for making pytorch models for climate and health"
 readme = "README.rst"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 license = {text = "MIT"}
 authors = [
     {name = "Knut Rand", email = "knutdrand@gmail.com"},

@@ -79,7 +79,7 @@ class RNNConfiguration(BaseModel):
 
 class RNNWithLocationEmbedding(nn.Module):
     def __init__(self,
-                 num_categories: int,
+                 num_categories: list[int],
                  input_feature_dim: int,
                  prediction_length: int,
                  output_dim: int = 2,
@@ -142,13 +142,10 @@ class RNNWithLocationEmbedding(nn.Module):
 
         # Pass through RNN
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
-        dummy_input = torch.zeros(batch_size * num_locations, self.prediction_length, 1)
+        dummy_input = x_rnn.new_zeros(batch_size * num_locations, self.prediction_length, 1)
         decoded, _ = self.decoder(dummy_input, end_state)
-        decoded = self.output_decoder(decoded)
-        decoded = nn.ReLU()(decoded)
-        decoded = self.ouput_layer(decoded)
+        decoded = self.output_layer(decoded)
         return decoded.reshape(batch_size, num_locations, self.prediction_length, self.output_dim).swapaxes(1, 2)
-        # return rnn_out.reshape(batch_size, num_locations, time_steps, self.hidden_dim).swapaxes(1, 2)
 
 
 class FlatRNN(RNNWithLocationEmbedding):
@@ -159,11 +156,13 @@ class FlatRNN(RNNWithLocationEmbedding):
         total_length = self.prediction_length + time_steps - 1
         x_rnn = self._encode(locations, x)
         if self.direct_ar:
-            x_rnn = torch.cat([x_rnn, x[..., -3:-1]], dim=-1)
+            # Tensorifier guarantees [na_mask, target_column] are the final
+            # two columns; this slice is robust to other optional columns.
+            x_rnn = torch.cat([x_rnn, x[..., -2:]], dim=-1)
 
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
 
-        dummy_input = torch.zeros(batch_size, self.prediction_length - offset_time, 1)
+        dummy_input = x_rnn.new_zeros(batch_size, self.prediction_length - offset_time, 1)
         decoded, _ = self.decoder(dummy_input, end_state)
 
         if offset_time:
@@ -200,35 +199,35 @@ class FlatRNN(RNNWithLocationEmbedding):
 def main():
     batch_size, time_steps, num_locations, feature_dim = 8, 10, 5, 16
     num_locations_total = 100  # Total number of location indices
-    hidden_dim = 32
+    prediction_length = 3
 
-    # Dummy data
+    # Dummy data — locations carry one category dim per location embedding.
     x = torch.randn(batch_size, time_steps, num_locations, feature_dim)
-    locations = torch.randint(0, num_locations_total, (batch_size, time_steps, num_locations))
+    locations = torch.randint(0, num_locations_total, (batch_size, time_steps, num_locations, 1))
 
-    # Initialize model
-    model = RNNWithLocationEmbedding([num_locations_total], feature_dim, hidden_dim)
-
-    # Forward pass
-    model(x, locations)
+    model = RNNWithLocationEmbedding(
+        num_categories=[num_locations_total],
+        input_feature_dim=feature_dim,
+        prediction_length=prediction_length,
+    )
+    return model(x, locations)
 
 
 def main_flat():
-    batch_size, time_steps, _, feature_dim = 8, 10, 5, 16
-    num_locations_total = 100  # Total number of location indices
-    hidden_dim = 32
+    batch_size, time_steps, feature_dim = 8, 10, 16
+    num_locations_total = 100
+    prediction_length = 3
 
-    # Dummy data
     x = torch.randn(batch_size, time_steps, feature_dim)
-    locations = torch.randint(0, num_locations_total, (batch_size, time_steps))
+    locations = torch.randint(0, num_locations_total, (batch_size, time_steps, 1))
 
-    # Initialize model
-    model = FlatRNN(num_locations_total, feature_dim, hidden_dim)
-
-    # Forward pass
-    output = model(x, locations)
+    model = FlatRNN(
+        num_categories=[num_locations_total],
+        input_feature_dim=feature_dim,
+        prediction_length=prediction_length,
+    )
+    return model(x, locations)
 
 
 if __name__ == '__main__':
-    # Example usage
     main_flat()

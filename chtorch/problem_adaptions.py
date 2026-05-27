@@ -2,7 +2,6 @@ import numpy as np
 
 
 def adapt_dataset(dataset, problem_configuration):
-    name = dataset.metadata.name
     if hasattr(dataset, 'metadata'):
         name = dataset.metadata.name
         if problem_configuration.replace_zeros:

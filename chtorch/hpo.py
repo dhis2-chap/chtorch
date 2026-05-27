@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 def suggest_model_configuration(trial):
     n_hidden = trial.suggest_int("n_hidden", 2, 8)
     return ModelConfiguration(
-        weight_decay=trial.suggest_loguniform("weight_decay", 1e-8, 1e-3),
+        weight_decay=trial.suggest_float("weight_decay", 1e-8, 1e-3, log=True),
         num_rnn_layers=trial.suggest_int("num_rnn_layers", 1, 4),
         n_layers=trial.suggest_int("n_layers", 0, 4),
         n_hidden=n_hidden,
@@ -27,15 +27,16 @@ def suggest_model_configuration(trial):
 
 
 def objective(trial, dataset):
-    wd = trial.suggest_loguniform("weight_decay", 1e-8, 1e-3)
+    wd = trial.suggest_float("weight_decay", 1e-8, 1e-3, log=True)
     nh = trial.suggest_categorical("n_hidden", [4, 8, 16, 32])
     me = trial.suggest_categorical("max_epochs", [2, 3])
     cl = trial.suggest_categorical("context_length", [7, 10, 12, 15, 20])
     ed = trial.suggest_categorical("embed_dim", [2, 4, 8])
-    nrl = trial.suggest_categorical("num_rnn_layers", [4, 8, 16, 32])
-    nl = trial.suggest_categorical("n_layers", [4, 8, 16, 32])
+    # These are layer counts, not hidden sizes.
+    nrl = trial.suggest_int("num_rnn_layers", 1, 4)
+    nl = trial.suggest_int("n_layers", 0, 4)
 
-    prob_config = ProblemConfiguration(replace_zeros=True)
+    prob_config = ProblemConfiguration(replace_zeros=True, validate=True)
     model_config = ModelConfiguration(weight_decay=wd,
                                       n_hidden=nh,
                                       max_epochs=me,
@@ -43,12 +44,10 @@ def objective(trial, dataset):
                                       embed_dim=ed,
                                       num_rnn_layers=nrl,
                                       n_layers=nl)
-    estimator = Estimator(prob_config, model_config, validate=True)
+    estimator = Estimator(prob_config, model_config)
 
     _ = estimator.train(dataset)
-    val_loss = estimator.last_val_loss
-
-    return val_loss
+    return estimator.last_val_loss
 
 
 def optuna_search(path, n_trials, output_name):
@@ -78,6 +77,28 @@ class HPOConfiguration(ModelConfiguration):
     n_trials: int = 20
 
 
+_HPO_ONLY_FIELDS = {'n_trials'}
+
+
+def _only_model_fields(hpo_cfg: HPOConfiguration) -> dict:
+    """Return a dict from an HPOConfiguration with only fields that are valid
+    on the base ModelConfiguration. Tuple-typed ranges (e.g. weight_decay) are
+    dropped — the trial provides scalar overrides for those.
+    """
+    raw = hpo_cfg.model_dump()
+    out = {}
+    model_fields = ModelConfiguration.model_fields
+    for key, value in raw.items():
+        if key in _HPO_ONLY_FIELDS:
+            continue
+        if key not in model_fields:
+            continue
+        if isinstance(value, tuple):
+            continue
+        out[key] = value
+    return out
+
+
 class HPOEstimator:
     estimator_class = Estimator
 
@@ -99,15 +120,15 @@ class HPOEstimator:
                                                  self._model_configuration.context_length[0],
                                                  self._model_configuration.context_length[1]),
              'dropout': trial.suggest_float('dropout', 0.0, 0.5),
-             'output_embedding': trial.suggest_int('output_embedding', 0, 3),
+             'output_embedding_dim': trial.suggest_int('output_embedding_dim', 0, 3),
              'num_rnn_layers': trial.suggest_int('num_rnn_layers', 1, 3),
              'n_hidden': hidden_dim,
              'embed_dim': hidden_dim}
 
-        model_config = ModelConfiguration(**(self._model_configuration.dict() | d))
-        problem_configuration = self._problem_configuration.copy()
+        model_config = ModelConfiguration(**(_only_model_fields(self._model_configuration) | d))
+        problem_configuration = self._problem_configuration.model_copy()
         problem_configuration.validate = True
-        val_loss = 0
+        val_loss = 0.0
         for split in (1, 2, 3, 4):
             problem_configuration.validation_index = split
             estimator = Estimator(problem_configuration, model_config)
@@ -131,7 +152,10 @@ class HPOEstimator:
         logger.info("  Params:")
         for key, value in best_trial.params.items():
             logger.info(f"  {key}: {value}")
-        best_model_config = ModelConfiguration(**(self._model_configuration.dict() | best_trial.params))
+        params = dict(best_trial.params)
+        if 'hidden_dim' in params:
+            params['n_hidden'] = params['embed_dim'] = params.pop('hidden_dim')
+        best_model_config = ModelConfiguration(**(_only_model_fields(self._model_configuration) | params))
         return best_model_config
 
 
