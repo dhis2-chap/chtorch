@@ -18,7 +18,7 @@ from chtorch.data_augmentation import get_augmentation
 from chtorch.distribution_loss import NegativeBinomialLoss, NBLossWithNaN
 from chtorch.lightning_module import DeepARLightningModule
 
-from chtorch.count_transforms import Log1pTransform
+from chtorch.count_transforms import IncidenceRateTransform
 from chtorch.data_loader import TSDataSet, FlatTSDataSet
 from chtorch.module import RNNWithLocationEmbedding, FlatRNN
 from chtorch.target_scaler import TargetScaler
@@ -50,7 +50,7 @@ class ModelBase:
 
     def _get_tensorifier(self):
         return Tensorifier(
-            Log1pTransform(),
+            IncidenceRateTransform(),
             self.model_configuration
             )
 
@@ -80,7 +80,7 @@ class Predictor(ModelBase):
         self.tensorifier = self._get_tensorifier()
         self.transformer = transformer
         self.context_length = model_configuration.context_length
-        self.count_transform = Log1pTransform()
+        self.count_transform = IncidenceRateTransform()
         self._loss_class = self._get_loss_class()
         self._target_scaler = target_scaler
         # assert target_scaler is not None, target_scaler
@@ -127,7 +127,10 @@ class Predictor(ModelBase):
                 locations = batch.locations[:, 0, 0]
                 assert len(np.unique(locations)) == len(locations)
                 eta = self._target_scaler.scale_by_location(locations, eta)
-        samples = self._loss_class.get_dist(eta, population, self.count_transform).sample((1000,))
+        # batch.population is shaped (n_locations, prediction_length) — matches
+        # eta's (n_locations, prediction_length, ...) layout for broadcasting
+        # inside count_transform.inverse.
+        samples = self._loss_class.get_dist(eta, batch.population, self.count_transform).sample((1000,))
         output = {}
         period_range = future_data.period_range
 
@@ -163,7 +166,7 @@ class Estimator(ModelBase):
     def __init__(self,
                  problem_configuration: ProblemConfiguration,
                  model_configuration: ModelConfiguration):
-        self.count_transform = Log1pTransform()
+        self.count_transform = IncidenceRateTransform()
         self.last_val_loss = None
         self.last_train_loss = None
         self.context_length = model_configuration.context_length

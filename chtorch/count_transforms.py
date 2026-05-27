@@ -68,3 +68,22 @@ class Logp1RateTransform(CountTransform):
     def inverse(self, transformed, denominator):
         xp = _array_module(transformed)
         return xp.exp(transformed + xp.log(denominator))
+
+
+class IncidenceRateTransform(CountTransform):
+    """Target = log1p(cases / population * SCALE).
+
+    Cases are first converted to incidence per `SCALE` people, then log1p'd.
+    Unlike Log1pTransform this is a true inverse-pair (`expm1` is exact),
+    and the target is on a per-capita scale that's comparable across
+    locations of very different sizes (e.g. provinces ranging 0.4M → 8M).
+    """
+    SCALE = 1000.0
+
+    def forward(self, numerator, denominator):
+        xp = _array_module(numerator)
+        return xp.log1p(numerator / denominator * self.SCALE)
+
+    def inverse(self, transformed, denominator):
+        xp = _array_module(transformed)
+        return xp.expm1(transformed) * denominator / self.SCALE
