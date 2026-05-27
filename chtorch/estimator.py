@@ -115,14 +115,16 @@ class Predictor(ModelBase):
                    target_scaler=target_scaler)
 
     def predict(self, historic_data: DataSet, future_data: DataSet):
+        from chtorch.tensorifier import seasonal_array
         historic_tensor, population, parents = self._get_prediction_dataset(historic_data)
         historic_tensor = historic_tensor.astype(np.float32)
         _DataSet = TSDataSet if not self.is_flat else FlatTSDataSet
         ts_dataset = _DataSet(historic_tensor, None, population, self.context_length, self.problem_configuration.prediction_length, parents,
                               transformer=self.transformer)
-        batch = ts_dataset.last_prediction_instance()
+        future_seasonal = seasonal_array(future_data.period_range)
+        batch = ts_dataset.last_prediction_instance(future_seasonal=future_seasonal)
         with torch.no_grad():
-            eta, *_ = self.module(batch.X, batch.locations)
+            eta, *_ = self.module(batch.X, batch.locations, future_seasonal=batch.future_seasonal)
             if self._target_scaler is not None:
                 locations = batch.locations[:, 0, 0]
                 assert len(np.unique(locations)) == len(locations)
@@ -297,7 +299,9 @@ class Estimator(ModelBase):
 
     def _get_single_transformed_dataset(self, data: DataSet, validation_dataset: DataSet | None = None) -> tuple[
         TSDataSet, StandardScaler, TargetScaler]:
+        from chtorch.tensorifier import seasonal_array
         array_dataset, population, parents = self.tensorifier.convert(data)
+        seasonal = seasonal_array(data.period_range)
         transformer = StandardScaler()
         input_features = array_dataset.shape[-1]
         transformer.fit(array_dataset.reshape(-1, input_features))
@@ -311,19 +315,21 @@ class Estimator(ModelBase):
         assert len(X) == len(y)
 
         train_dataset = FlatTSDataSet(X, y, population, self.context_length, self.problem_configuration.prediction_length, parents,
-                                      transformer=transformer)
+                                      transformer=transformer, seasonal=seasonal)
         if validation_dataset is not None:
             val_array_dataset, val_population, _ = self.tensorifier.convert(validation_dataset)
+            val_seasonal = seasonal_array(validation_dataset.period_range)
             val_X = val_array_dataset.astype(np.float32)
             val_y = np.array([series.disease_cases for series in validation_dataset.values()]).T
             full_X = np.concatenate([X[-self.context_length:], val_X], axis=0)
             full_y = np.concatenate([y[-self.context_length:], val_y], axis=0)
             full_population = np.concatenate([population[-self.context_length:], val_population], axis=0)
+            full_seasonal = np.concatenate([seasonal[-self.context_length:], val_seasonal], axis=0)
             val_dataset = FlatTSDataSet(
                 full_X, full_y, full_population,
                 self.context_length,
                 self.problem_configuration.prediction_length, parents,
-                transformer=transformer)
+                transformer=transformer, seasonal=full_seasonal)
             true_length = (len(validation_dataset.period_range) - self.problem_configuration.prediction_length + 1) * len(
                 validation_dataset.locations())
             logger.info(

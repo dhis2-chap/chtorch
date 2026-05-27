@@ -3,13 +3,20 @@ from collections import namedtuple
 import torch
 import numpy as np
 
-Entry = namedtuple('Entry', ['X', 'locations', 'y', 'population', 'past_y'])
+# future_seasonal: per-future-step (sin_year, cos_year). Always provided
+# for the prediction horizon; defaults to None for older callers / TSDataSet
+# code paths that don't supply it.
+Entry = namedtuple(
+    'Entry',
+    ['X', 'locations', 'y', 'population', 'past_y', 'future_seasonal'],
+)
+Entry.__new__.__defaults__ = (None,)
 
 
 class TSDataSet(torch.utils.data.Dataset):
     def __init__(self, X, y, population, context_length,
                  prediction_length, parents=None, indices=None,
-                 augmentations=None, transformer=None):
+                 augmentations=None, transformer=None, seasonal=None):
         if y is not None:
             assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         self.X = X  # time, location, feature
@@ -25,6 +32,10 @@ class TSDataSet(torch.utils.data.Dataset):
         self.augmentations = augmentations if augmentations is not None else []
         self.indices = indices
         self.transformer = transformer
+        # seasonal: (T, 2) sin/cos of year position; lets the decoder see what
+        # calendar month it is predicting for. Optional — None falls back to
+        # the previous zero-input decoder behaviour.
+        self.seasonal = seasonal
 
     def _transform_x(self, x):
         if self.transformer is not None:
@@ -55,7 +66,7 @@ class TSDataSet(torch.utils.data.Dataset):
             indices = np.asanyarray(self.indices)[indices]
         return self.__class__(self.X, self.y, self.population, self.context_length, self.prediction_length,
                               parents=self.parents, indices=indices, augmentations=self.augmentations,
-                              transformer=self.transformer)
+                              transformer=self.transformer, seasonal=self.seasonal)
 
     def __len__(self):
         if self.indices is not None:
@@ -102,12 +113,15 @@ class FlatTSDataSet(TSDataSet):
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         p = self.parents[j]
         locations = np.array([(j, p) for _ in range(self.context_length)])
-        output = Entry(x, locations, y, population, past_y)
+        future_seasonal = None
+        if self.seasonal is not None:
+            future_seasonal = self.seasonal[i + self.context_length:i + self.total_length]
+        output = Entry(x, locations, y, population, past_y, future_seasonal)
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
         return output
 
-    def last_prediction_instance(self) -> Entry:
+    def last_prediction_instance(self, future_seasonal=None) -> Entry:
         last_population = self.population[-1:].T
         repeated_population = np.repeat(last_population, self.prediction_length, axis=1)
         location_row = np.array([self.locations[0].ravel(), self.parents]).T
@@ -116,12 +130,19 @@ class FlatTSDataSet(TSDataSet):
         x = self.X[-self.context_length:, ...].swapaxes(0, 1)
         shape = x.shape
         x = self._transform_x(x.reshape(-1, shape[-1])).reshape(shape)
-        # Entry = namedtuple('Entry', ['X', 'locations', 'y', 'population', 'past_y'])
+        fs = None
+        if future_seasonal is not None:
+            # broadcast across the location batch axis so collation matches
+            # the train path's (batch, prediction_length, 2) layout
+            fs = torch.from_numpy(
+                np.broadcast_to(future_seasonal, (self.n_locations, *future_seasonal.shape)).copy()
+            )
         return Entry(torch.from_numpy(x),
                      torch.from_numpy(location),
                      None,
                      torch.from_numpy(repeated_population),
-                     None)
+                     None,
+                     fs)
 
 
 class MultiDataset(torch.utils.data.Dataset):
@@ -155,11 +176,11 @@ class MultiDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, item):
         dataset_idx, new_idx = self._split_index(item)
-        x, locations, y, population, past_y = self.datasets[dataset_idx][new_idx]
-        locations = locations.copy()
+        entry = self.datasets[dataset_idx][new_idx]
+        locations = entry.locations.copy()
         locations[:, 0] += self._category_offsets[dataset_idx]
         locations[:, 1] = dataset_idx
-        output = Entry(x, locations, y, population, past_y)
+        output = entry._replace(locations=locations)
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
         return output

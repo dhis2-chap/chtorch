@@ -112,7 +112,13 @@ class RNNWithLocationEmbedding(nn.Module):
         else:
             raise ValueError("Unsupported RNN type. Use 'GRU' or 'LSTM'.")
 
-        self.decoder = nn.GRU(1, cfg.state_dim, num_layers=cfg.num_rnn_layers, batch_first=True, dropout=cfg.dropout)
+        # decoder consumes a 1-channel dummy plus the 2 seasonal features
+        # (sin/cos year position) for each future step — those are the only
+        # covariates we know deterministically into the future.
+        self.decoder_seasonal_dim = 2
+        self.decoder = nn.GRU(1 + self.decoder_seasonal_dim, cfg.state_dim,
+                              num_layers=cfg.num_rnn_layers, batch_first=True,
+                              dropout=cfg.dropout)
         self.output_embedding = nn.Embedding(num_categories[0], cfg.output_embedding_dim)
         dim = cfg.state_dim + cfg.output_embedding_dim
         #self.output_decoder = nn.Linear(dim, cfg.n_hidden)
@@ -142,15 +148,18 @@ class RNNWithLocationEmbedding(nn.Module):
 
         # Pass through RNN
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
-        dummy_input = x_rnn.new_zeros(batch_size * num_locations, self.prediction_length, 1)
-        decoded, _ = self.decoder(dummy_input, end_state)
+        # Decoder input shape must match `self.decoder.input_size` (1 + seasonal_dim).
+        decoder_input = x_rnn.new_zeros(
+            batch_size * num_locations, self.prediction_length, 1 + self.decoder_seasonal_dim
+        )
+        decoded, _ = self.decoder(decoder_input, end_state)
         decoded = self.output_layer(decoded)
         return decoded.reshape(batch_size, num_locations, self.prediction_length, self.output_dim).swapaxes(1, 2)
 
 
 class FlatRNN(RNNWithLocationEmbedding):
 
-    def forward(self, x, locations):
+    def forward(self, x, locations, future_seasonal=None):
         offset_time = True
         batch_size, time_steps, feature_dim = x.shape
         total_length = self.prediction_length + time_steps - 1
@@ -162,8 +171,23 @@ class FlatRNN(RNNWithLocationEmbedding):
 
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
 
-        dummy_input = x_rnn.new_zeros(batch_size, self.prediction_length - offset_time, 1)
-        decoded, _ = self.decoder(dummy_input, end_state)
+        # Decoder input: dummy zero(s) + the known future seasonal features
+        # for the remaining horizon steps (h=1, h=2, ...). With offset_time=1
+        # the first horizon step (h=0) is taken from the encoder output.
+        n_decoder_steps = self.prediction_length - offset_time
+        dummy_input = x_rnn.new_zeros(batch_size, n_decoder_steps, 1)
+        if future_seasonal is not None:
+            fs = future_seasonal.to(dtype=x_rnn.dtype, device=x_rnn.device)
+            # fs: (batch, prediction_length, 2). Drop the first step which is
+            # served by the encoder.
+            fs_dec = fs[:, offset_time:, :]
+            decoder_input = torch.cat([dummy_input, fs_dec], dim=-1)
+        else:
+            decoder_input = torch.cat(
+                [dummy_input, x_rnn.new_zeros(batch_size, n_decoder_steps, self.decoder_seasonal_dim)],
+                dim=-1,
+            )
+        decoded, _ = self.decoder(decoder_input, end_state)
 
         if offset_time:
             decoded = torch.cat([rnn_out, decoded], dim=1)
