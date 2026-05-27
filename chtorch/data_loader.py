@@ -3,7 +3,14 @@ from collections import namedtuple
 import torch
 import numpy as np
 
-Entry = namedtuple('Entry', ['X', 'locations', 'y', 'population', 'past_y'])
+# last_log_rate: un-normalized log1p(rate) at the final historic step,
+# per-sample scalar. Used as a persistence baseline (skip connection) so
+# the model only learns deviations from "stay at the most recent value".
+Entry = namedtuple(
+    'Entry',
+    ['X', 'locations', 'y', 'population', 'past_y', 'last_log_rate'],
+)
+Entry.__new__.__defaults__ = (None,)
 
 
 class TSDataSet(torch.utils.data.Dataset):
@@ -94,6 +101,9 @@ class FlatTSDataSet(TSDataSet):
         if self.indices is not None:
             item = self.indices[item]
         i, j = divmod(item, self.X.shape[1])
+        # Tensorifier puts target_column as the last feature (un-normalized
+        # log1p of incidence rate). Grab it BEFORE _transform_x scales x.
+        last_log_rate = np.float32(self.X[i + self.context_length - 1, j, -1])
         x = self.X[i:i + self.context_length, j]
         x = self._transform_x(x)
         y = self.y[i + self.context_length:i + self.total_length, j]
@@ -102,7 +112,7 @@ class FlatTSDataSet(TSDataSet):
         assert y.shape == population.shape, f"y and population should have the same shape, got {y.shape} and {population.shape}"
         p = self.parents[j]
         locations = np.array([(j, p) for _ in range(self.context_length)])
-        output = Entry(x, locations, y, population, past_y)
+        output = Entry(x, locations, y, population, past_y, last_log_rate)
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
         return output
@@ -113,15 +123,18 @@ class FlatTSDataSet(TSDataSet):
         location_row = np.array([self.locations[0].ravel(), self.parents]).T
         location = np.array([location_row for _ in range(self.context_length)]).swapaxes(0, 1)
         assert location.shape == (self.n_locations, self.context_length, 2), location.shape
+        # Per-location persistence baseline = most recent un-normalized
+        # target_column (the last feature of X).
+        last_log_rate = self.X[-1, :, -1].astype(np.float32)
         x = self.X[-self.context_length:, ...].swapaxes(0, 1)
         shape = x.shape
         x = self._transform_x(x.reshape(-1, shape[-1])).reshape(shape)
-        # Entry = namedtuple('Entry', ['X', 'locations', 'y', 'population', 'past_y'])
         return Entry(torch.from_numpy(x),
                      torch.from_numpy(location),
                      None,
                      torch.from_numpy(repeated_population),
-                     None)
+                     None,
+                     torch.from_numpy(last_log_rate))
 
 
 class MultiDataset(torch.utils.data.Dataset):
@@ -155,11 +168,11 @@ class MultiDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, item):
         dataset_idx, new_idx = self._split_index(item)
-        x, locations, y, population, past_y = self.datasets[dataset_idx][new_idx]
-        locations = locations.copy()
+        entry = self.datasets[dataset_idx][new_idx]
+        locations = entry.locations.copy()
         locations[:, 0] += self._category_offsets[dataset_idx]
         locations[:, 1] = dataset_idx
-        output = Entry(x, locations, y, population, past_y)
+        output = entry._replace(locations=locations)
         for augmentation in self.augmentations:
             output = augmentation.transform(output)
         return output

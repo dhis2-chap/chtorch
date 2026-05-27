@@ -122,7 +122,7 @@ class Predictor(ModelBase):
                               transformer=self.transformer)
         batch = ts_dataset.last_prediction_instance()
         with torch.no_grad():
-            eta, *_ = self.module(batch.X, batch.locations)
+            eta, *_ = self.module(batch.X, batch.locations, last_log_rate=batch.last_log_rate)
             if self._target_scaler is not None:
                 locations = batch.locations[:, 0, 0]
                 assert len(np.unique(locations)) == len(locations)
