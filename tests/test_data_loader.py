@@ -34,7 +34,7 @@ def ts_dataset(ch_dataset, tensorifier):
 
 def test_getitem(ts_dataset):
     batch = ts_dataset[0]
-    assert batch.X.shape == (12, 19, 7)
+    assert batch.X.shape == (12, 19, 8)
     assert batch.locations.shape == (12, 19, 1)
     assert batch.y.shape == (3, 19)
     assert batch.population.shape == (3, 19)
@@ -42,14 +42,14 @@ def test_getitem(ts_dataset):
 
 def test_last_prediction(ts_dataset):
     X, location, population = ts_dataset.last_prediction_instance()
-    assert X.shape == (1, 12, 19, 7)
+    assert X.shape == (1, 12, 19, 8)
     assert location.shape == (1, 12, 19, 1)
     assert population.shape == (1, 3, 19)
 
 
 def test_getitem_flat(flat_dataset):
     batch = flat_dataset[0]
-    assert batch.X.shape == (12, 7)
+    assert batch.X.shape == (12, 8)
     assert batch.y.shape == (3,)
     assert batch.locations.shape == (12, 2)
     assert batch.population.shape == (3,)
@@ -58,7 +58,7 @@ def test_getitem_flat(flat_dataset):
 def test_last_prediction_flat(flat_dataset):
     batch = flat_dataset.last_prediction_instance()
     n_location = 19
-    assert batch.X.shape == (n_location, 12, 7)
+    assert batch.X.shape == (n_location, 12, 8)
     assert batch.locations.shape == (n_location, 12, 2)
     assert batch.population.shape == (n_location, 3)
 
@@ -71,7 +71,7 @@ def test_multidataset_getitem_returns_entry(ch_dataset, tensorifier):
     multi = MultiDataset([ds_a, ds_b])
     item = multi[0]
     assert isinstance(item, Entry)
-    assert item.X.shape == (12, 7)
+    assert item.X.shape == (12, 8)
     assert item.locations.shape == (12, 2)
     assert item.y.shape == (3,)
     assert item.population.shape == (3,)

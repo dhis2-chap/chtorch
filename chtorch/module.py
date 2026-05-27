@@ -156,7 +156,9 @@ class FlatRNN(RNNWithLocationEmbedding):
         total_length = self.prediction_length + time_steps - 1
         x_rnn = self._encode(locations, x)
         if self.direct_ar:
-            x_rnn = torch.cat([x_rnn, x[..., -3:-1]], dim=-1)
+            # Tensorifier guarantees [na_mask, target_column] are the final
+            # two columns; this slice is robust to other optional columns.
+            x_rnn = torch.cat([x_rnn, x[..., -2:]], dim=-1)
 
         rnn_out, end_state = self.rnn(x_rnn)  # Output: (batch, time, hidden_dim)
 

@@ -104,8 +104,10 @@ class Tensorifier:
                 assert False, f"Feature {name} contains NaNs: {column}"
             if np.isinf(column).any():
                 assert False, f"Feature {name} contains infs: {column}"
-        year_position = np.array(
-            [year_position_from_datetime(period.start_timestamp.date) for period in location_data.time_period])
+        sin_cos = np.array(
+            [seasonal_sin_cos(period.start_timestamp.date) for period in location_data.time_period])
+        sin_year = sin_cos[:, 0]
+        cos_year = sin_cos[:, 1]
 
         population = smooth_population(location_data.population)
         population_column = np.log(population)
@@ -118,14 +120,18 @@ class Tensorifier:
             target_column = interpolate_nans(cases)
         target_column = self.count_transform.forward(target_column, population)
         na_mask = np.isnan(cases)
-        extra_columns = [year_position]
+
+        # Feature ordering matters: FlatRNN.forward grabs `x[..., -2:]` as the
+        # autoregressive signal when direct_ar=True, so na_mask and
+        # target_column MUST be the final two columns, in that order.
+        extra_columns = [sin_year, cos_year]
         if self.config.mask_covid:
             extra_columns.append(get_covid_mask(location_data.time_period))
         if self.config.previous_cases:
             extra_columns.append(has_previous_cases(cases))
-        extra_columns.extend([na_mask, target_column])
         if self.config.use_population:
             extra_columns.append(population_column)
+        extra_columns.extend([na_mask, target_column])
 
         return np.array(
             feature_columns + extra_columns).T, population
@@ -134,3 +140,10 @@ class Tensorifier:
 def year_position_from_datetime(dt: datetime) -> float:
     day = dt.timetuple().tm_yday
     return day / 365
+
+
+def seasonal_sin_cos(dt: datetime) -> tuple[float, float]:
+    """Return (sin, cos) of the year-position so the network gets a smooth
+    annual seasonal feature instead of a sawtooth that jumps at year-end."""
+    angle = 2.0 * np.pi * dt.timetuple().tm_yday / 365.0
+    return float(np.sin(angle)), float(np.cos(angle))
