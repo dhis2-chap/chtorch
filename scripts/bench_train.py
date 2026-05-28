@@ -23,6 +23,7 @@ from chtorch.estimator import Estimator
 class TimingCallback(L.Callback):
     def __init__(self):
         self.epoch_times = []
+        self.epoch_losses = []
         self._t0 = None
 
     def on_train_epoch_start(self, trainer, pl_module):
@@ -32,6 +33,9 @@ class TimingCallback(L.Callback):
         if self._t0 is not None:
             self.epoch_times.append(time.perf_counter() - self._t0)
             self._t0 = None
+        loss = trainer.callback_metrics.get('train_loss')
+        if loss is not None:
+            self.epoch_losses.append(float(loss))
 
 
 def main():
@@ -97,6 +101,9 @@ def main():
         et = timing_cb.epoch_times
         print(f"per-epoch:        min {min(et):.2f}s  median {sorted(et)[len(et)//2]:.2f}s  max {max(et):.2f}s  total {sum(et):.2f}s")
         print(f"#epochs measured: {len(et)}")
+    if timing_cb.epoch_losses:
+        ls = timing_cb.epoch_losses
+        print(f"train_loss epochs ({len(ls)}): " + " ".join(f"{x:.3f}" for x in ls))
     print(f"profile dumped:   {args.profile_out}")
 
     # Print top hotspots inline.

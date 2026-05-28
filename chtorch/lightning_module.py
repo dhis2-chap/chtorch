@@ -39,7 +39,7 @@ class DeepARLightningModule(L.LightningModule):
         return self.module(*args, **kwargs)
 
     def training_step(self, batch, batch_idx):
-        eta, past_eta = self.module(batch.X, batch.locations)
+        eta, past_eta = self.module(batch.X, batch.locations, last_log_rate=batch.last_log_rate, per_loc_std=batch.per_loc_std)
         if self._target_scaler is not None:
             log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], eta)
             past_log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], past_eta)
@@ -55,7 +55,7 @@ class DeepARLightningModule(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         with torch.no_grad():
-            log_rate, *_ = self.module(batch.X, batch.locations)
+            log_rate, *_ = self.module(batch.X, batch.locations, last_log_rate=batch.last_log_rate, per_loc_std=batch.per_loc_std)
             assert not torch.isnan(log_rate).any()
             if self._target_scaler is not None:
                 log_rate = self._target_scaler.scale_by_location(batch.locations[:, 0, 0], log_rate)

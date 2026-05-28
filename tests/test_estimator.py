@@ -92,8 +92,9 @@ def test_save_load_roundtrip_with_predict_nans(train_test, tmp_path):
         torch.testing.assert_close(loaded.module.state_dict()[k], v)
 
 
-def test_save_load_roundtrip_preserves_target_scaler(train_test, tmp_path):
-    import torch
+def test_save_load_roundtrip_target_scaler_none(train_test, tmp_path):
+    """Estimator.train no longer constructs a TargetScaler — save/load
+    must round-trip the absence cleanly."""
     from chtorch.estimator import Predictor
 
     train, _ = train_test
@@ -102,10 +103,11 @@ def test_save_load_roundtrip_preserves_target_scaler(train_test, tmp_path):
         ModelConfiguration(context_length=12),
     )
     predictor = estimator.train(train)
-    out_path = tmp_path / 'test_model_scaler'
+    assert predictor._target_scaler is None
+    out_path = tmp_path / 'test_model_no_scaler'
     predictor.save(out_path)
 
     loaded = Predictor.load(out_path)
-    assert loaded._target_scaler is not None
-    torch.testing.assert_close(loaded._target_scaler.mu, predictor._target_scaler.mu)
-    torch.testing.assert_close(loaded._target_scaler.std, predictor._target_scaler.std)
+    assert loaded._target_scaler is None
+    # No .target_scaler file should be written when there's nothing to save.
+    assert not out_path.with_suffix('.target_scaler').exists()

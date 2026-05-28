@@ -75,6 +75,11 @@ class RNNConfiguration(BaseModel):
     output_embedding_dim: int = 0 # Capacity
     dropout: float = 0.0 # Regulatization
     direct_ar: bool = False # Convergence
+    # If True, the mean head predicts in terms of a per-location persistence
+    # baseline + a per-location-std-scaled residual:
+    #     eta_mean = network_out * per_loc_std + last_log_rate
+    # If False, the model emits eta directly (no skip, no residual scaling).
+    persistence_skip: bool = True
 
 
 class RNNWithLocationEmbedding(nn.Module):
@@ -119,6 +124,7 @@ class RNNWithLocationEmbedding(nn.Module):
         #self.ouput_layer = MLP(cfg.n_hidden, cfg.n_hidden, self.output_dim, cfg.n_layers, dropout=cfg.dropout)
         self.output_layer = FeatureCompressor(dim, cfg.max_dim, self.output_dim, dropout=cfg.dropout)
         self.prediction_length = prediction_length
+        self.persistence_skip = cfg.persistence_skip
 
     def forward(self, x, locations):
         """
@@ -150,7 +156,7 @@ class RNNWithLocationEmbedding(nn.Module):
 
 class FlatRNN(RNNWithLocationEmbedding):
 
-    def forward(self, x, locations):
+    def forward(self, x, locations, last_log_rate=None, per_loc_std=None):
         offset_time = True
         batch_size, time_steps, feature_dim = x.shape
         total_length = self.prediction_length + time_steps - 1
@@ -174,6 +180,22 @@ class FlatRNN(RNNWithLocationEmbedding):
         decoded = self.output_layer(decoded)
 
         reshaped = decoded.reshape(batch_size, total_length, self.output_dim)
+
+        # Persistence skip + per-location residual unit (gated by cfg flag):
+        #   eta_mean = network_out * per_loc_std + last_log_rate
+        # network_out=0 ⇒ predict last observation; non-zero outputs are
+        # interpreted as deviations in per-location sigma units of
+        # log1p(rate). When persistence_skip=False (or batch lacks
+        # last_log_rate), the mean channel passes through unchanged.
+        if self.persistence_skip and last_log_rate is not None:
+            llr = last_log_rate.to(dtype=reshaped.dtype, device=reshaped.device)
+            llr = llr.reshape(batch_size, 1, 1)
+            mean_channel = reshaped[..., :1]
+            if per_loc_std is not None:
+                pls = per_loc_std.to(dtype=reshaped.dtype, device=reshaped.device)
+                mean_channel = mean_channel * pls.reshape(batch_size, 1, 1)
+            mean_channel = mean_channel + llr
+            reshaped = torch.cat([mean_channel, reshaped[..., 1:]], dim=-1)
 
         return (reshaped[:, -self.prediction_length:].squeeze(-1),
                 reshaped[:, :-self.prediction_length].squeeze(-1))
