@@ -39,14 +39,24 @@ class MaskedNANLoss(abc.ABC, nn.Module):
 
 
 _MIN_TOTAL_COUNT = 1e-6
+_MAX_TOTAL_COUNT = 1e8
 
 
 def _safe_total_count(eta, population, count_transform):
-    """Convert (eta, population) to NB total_count, clamped to a tiny
-    positive floor so torch.distributions.NegativeBinomial stays valid even
-    when the predicted mean is exactly 0."""
+    """Convert (eta, population) to NB total_count, clamped to a safe finite
+    range. Without the persistence skip the network can output very large or
+    very negative eta values at the start of training, which combined with
+    expm1(·) overflows or makes total_count negative / NaN. clamp + nan_to_num
+    keeps torch.distributions.NegativeBinomial valid."""
     mean = count_transform.inverse(eta[..., 0], population)
-    return (mean / torch.exp(eta[..., 1])).clamp_min(_MIN_TOTAL_COUNT)
+    total = mean / torch.exp(eta[..., 1])
+    total = torch.nan_to_num(
+        total,
+        nan=_MIN_TOTAL_COUNT,
+        posinf=_MAX_TOTAL_COUNT,
+        neginf=_MIN_TOTAL_COUNT,
+    )
+    return total.clamp(min=_MIN_TOTAL_COUNT, max=_MAX_TOTAL_COUNT)
 
 
 class NegativeBinomialLoss(MaskedNANLoss):
